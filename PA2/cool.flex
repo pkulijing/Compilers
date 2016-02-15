@@ -39,19 +39,46 @@ extern int verbose_flag;
 
 extern YYSTYPE cool_yylval;
 
+#define CLASS 258
+#define ELSE 259
+#define FI 260
+#define IF 261
+#define IN 262
+#define INHERITS 263
+#define LET 264
+#define LOOP 265
+#define POOL 266
+#define THEN 267
+#define WHILE 268
+#define CASE 269
+#define ESAC 270
+#define OF 271
+#define DARROW 272
+#define NEW 273
+#define ISVOID 274
+#define STR_CONST 275
+#define INT_CONST 276
+#define BOOL_CONST 277
+#define TYPEID 278
+#define OBJECTID 279
+#define ASSIGN 280
+#define NOT 281
+#define LE 282
+#define ERROR 283
+#define LET_STMT 285
+
 /*
  *  Add Your own definitions here
  */
 
 %}
 
-DIGIT [0-9]
-ID [a-z][a-zA-Z0-9]*
+%s STRING
+%s COMMENT1
+%s COMMENT2
 /*
  * Define names for regular expressions here.
  */
-
-DARROW          =>
 
 %%
 
@@ -63,7 +90,51 @@ DARROW          =>
  /*
   *  The multiple-character operators.
   */
-{DARROW}		{ return (DARROW); }
+"+" { return '+'; }
+"-" { return '-'; }
+"*" { return '*'; }
+"/" { return '/'; }
+"~" { return '~'; }
+"<" { return '<'; }
+"=" { return '='; }
+"(" { return '('; }
+")" { return ')'; }
+"{" { return '{'; }
+"}" { return '}'; }
+"," { return ','; }
+":" { return ':'; }
+";" { return ';'; }
+"." { return '.'; }
+\n { curr_lineno++; }
+[ \t]+ {}
+"--" { BEGIN(COMMENT1); }
+<COMMENT1>\n { BEGIN(INITIAL); }
+<COMMENT1>.* 
+(?i:class)  { return (CLASS); }
+(?i:else) { return (ELSE); }
+(?i:fi) { return (FI); }
+(?i:if) { return (IF); }
+(?i:in) { return (IN); }
+(?i:inherits) { return (INHERITS); }
+(?i:let) { return (LET); }
+(?i:loop) { return (LOOP); }
+(?i:pool) { return (POOL); }
+(?i:then) { return (THEN); }
+(?i:while)  { return (WHILE); } 
+(?i:case) { return (CASE); }
+(?i:esac) { return (ESAC); }
+(?i:of) { return (OF); }
+"=>"  { return (DARROW); }
+(?i:new)  { return (NEW); }
+(?i:isvoid) { return (ISVOID); }
+[0-9]+  { yylval.symbol = inttable.add_string(yytext); return (INT_CONST); }
+T(?i:rue) { yylval.boolean = true; return (BOOL_CONST); }
+F(?i:alse) { yylval.boolean = false; return (BOOL_CONST); }
+[A-Z][0-9a-zA-Z_]*  { yylval.symbol = idtable.add_string(yytext); return (TYPEID); }
+[a-z][0-9a-zA-Z_]*  { yylval.symbol = idtable.add_string(yytext); return (OBJECTID); }
+"<-"        { return (ASSIGN); }
+not         { return (NOT); }
+"<="        { return (LE); }
 
  /*
   * Keywords are case-insensitive except for the values true and false,
