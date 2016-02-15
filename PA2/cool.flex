@@ -39,6 +39,8 @@ extern int verbose_flag;
 
 extern YYSTYPE cool_yylval;
 
+unsigned int comment_layer = 0;
+
 #define CLASS 258
 #define ELSE 259
 #define FI 260
@@ -74,8 +76,8 @@ extern YYSTYPE cool_yylval;
 %}
 
 %s STRING
-%s COMMENT1
-%s COMMENT2
+%s COMMENT_ONE_LINE
+%s COMMENT
 /*
  * Define names for regular expressions here.
  */
@@ -100,9 +102,16 @@ extern YYSTYPE cool_yylval;
 <STRING>\0 /*report error!*/
 
  /*comments*/
-<INITIAL>"--" { BEGIN(COMMENT1); }
-<COMMENT1>\n { curr_lineno++; BEGIN(INITIAL); }
-<COMMENT1>.* 
+<INITIAL>"--" { BEGIN(COMMENT_ONE_LINE); }
+<COMMENT_ONE_LINE>\n { curr_lineno++; BEGIN(INITIAL); }
+<COMMENT_ONE_LINE>.* 
+<COMMENT_ONE_LINE><<EOF>> { BEGIN(INITIAL); yyterminate(); }
+
+<INITIAL>"(*" { BEGIN(COMMENT); comment_layer++; }
+<COMMENT>"(*" { comment_layer++; }
+<COMMENT>[^*()]*|[(][^*]*|[*][^)]* 
+<COMMENT>"*)" { comment_layer--; if (comment_layer == 0) BEGIN(INITIAL); }
+<COMMENT><<EOF>> { /*report error!*/}
 
  /*Operaters*/
 "+" { return '+'; }
@@ -120,9 +129,10 @@ extern YYSTYPE cool_yylval;
 ":" { return ':'; }
 ";" { return ';'; }
 "." { return '.'; }
-"=>"  { return (DARROW); }
-"<-"        { return (ASSIGN); }
-"<="        { return (LE); }
+"=>" { return (DARROW); }
+"<-" { return (ASSIGN); }
+"<=" { return (LE); }
+"*)" {/*report error!*/}
 
  /*new line*/
 \n { curr_lineno++; }
