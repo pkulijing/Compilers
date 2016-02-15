@@ -110,6 +110,9 @@ extern YYSTYPE cool_yylval;
 "--" { BEGIN(COMMENT1); }
 <COMMENT1>\n { BEGIN(INITIAL); }
 <COMMENT1>.* 
+["] { BEGIN(STRING); }
+<STRING>[^"]* { yylval.symbol = stringtable.add_string(yytext); return (STR_CONST); }
+<STRING>["] { BEGIN(INITIAL); }
 (?i:class)  { return (CLASS); }
 (?i:else) { return (ELSE); }
 (?i:fi) { return (FI); }
@@ -135,7 +138,7 @@ F(?i:alse) { yylval.boolean = false; return (BOOL_CONST); }
 "<-"        { return (ASSIGN); }
 not         { return (NOT); }
 "<="        { return (LE); }
-
+<<EOF>> { yyterminate(); }
  /*
   * Keywords are case-insensitive except for the values true and false,
   * which must begin with a lower-case letter.
