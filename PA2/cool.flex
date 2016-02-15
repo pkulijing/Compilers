@@ -85,11 +85,26 @@ extern YYSTYPE cool_yylval;
  /*
   *  Nested comments
   */
+ /*strings*/
+<INITIAL>["] { BEGIN(STRING); string_buf_ptr = string_buf; }
+<STRING>\\b { *string_buf_ptr = '\b'; string_buf_ptr++; }
+<STRING>\\t { *string_buf_ptr = '\t'; string_buf_ptr++; }
+<STRING>\\f { *string_buf_ptr = '\f'; string_buf_ptr++; }
+<STRING>\\n { *string_buf_ptr = '\n'; string_buf_ptr++; }
+<STRING>\\\n { *string_buf_ptr = '\n'; string_buf_ptr++; }
+<STRING>\\
+<STRING>[^"\\\0\n]* { unsigned int i; for (i = 0; i < strlen(yytext); i++) { *string_buf_ptr = yytext[i]; string_buf_ptr++;} }
+<STRING>["] { *string_buf_ptr='\0'; yylval.symbol = stringtable.add_string(string_buf); BEGIN(INITIAL); return (STR_CONST); }
+<STRING><<EOF>> /*report error!*/
+<STRING>\n /*report error!*/
+<STRING>\0 /*report error!*/
 
+ /*comments*/
+<INITIAL>"--" { BEGIN(COMMENT1); }
+<COMMENT1>\n { curr_lineno++; BEGIN(INITIAL); }
+<COMMENT1>.* 
 
- /*
-  *  The multiple-character operators.
-  */
+ /*Operaters*/
 "+" { return '+'; }
 "-" { return '-'; }
 "*" { return '*'; }
@@ -105,14 +120,17 @@ extern YYSTYPE cool_yylval;
 ":" { return ':'; }
 ";" { return ';'; }
 "." { return '.'; }
+"=>"  { return (DARROW); }
+"<-"        { return (ASSIGN); }
+"<="        { return (LE); }
+
+ /*new line*/
 \n { curr_lineno++; }
-[ \t]+ {}
-"--" { BEGIN(COMMENT1); }
-<COMMENT1>\n { BEGIN(INITIAL); }
-<COMMENT1>.* 
-["] { BEGIN(STRING); }
-<STRING>[^"]* { yylval.symbol = stringtable.add_string(yytext); return (STR_CONST); }
-<STRING>["] { BEGIN(INITIAL); }
+
+ /*space*/
+[ \t]+ 
+
+ /*Keywords. Case insensitive*/
 (?i:class)  { return (CLASS); }
 (?i:else) { return (ELSE); }
 (?i:fi) { return (FI); }
@@ -127,17 +145,20 @@ extern YYSTYPE cool_yylval;
 (?i:case) { return (CASE); }
 (?i:esac) { return (ESAC); }
 (?i:of) { return (OF); }
-"=>"  { return (DARROW); }
 (?i:new)  { return (NEW); }
 (?i:isvoid) { return (ISVOID); }
-[0-9]+  { yylval.symbol = inttable.add_string(yytext); return (INT_CONST); }
+(?i:not) { return (NOT); }
 T(?i:rue) { yylval.boolean = true; return (BOOL_CONST); }
 F(?i:alse) { yylval.boolean = false; return (BOOL_CONST); }
+
+ /*integers*/
+[0-9]+  { yylval.symbol = inttable.add_string(yytext); return (INT_CONST); }
+
+ /*IDs*/
 [A-Z][0-9a-zA-Z_]*  { yylval.symbol = idtable.add_string(yytext); return (TYPEID); }
 [a-z][0-9a-zA-Z_]*  { yylval.symbol = idtable.add_string(yytext); return (OBJECTID); }
-"<-"        { return (ASSIGN); }
-not         { return (NOT); }
-"<="        { return (LE); }
+
+ /*EOF*/
 <<EOF>> { yyterminate(); }
  /*
   * Keywords are case-insensitive except for the values true and false,
