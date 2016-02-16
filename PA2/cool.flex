@@ -221,8 +221,8 @@ unsigned int comment_layer = 0;
 (?i:new)  { return (NEW); }
 (?i:isvoid) { return (ISVOID); }
 (?i:not) { return (NOT); }
-T(?i:rue) { yylval.boolean = true; return (BOOL_CONST); }
-F(?i:alse) { yylval.boolean = false; return (BOOL_CONST); }
+t(?i:rue) { yylval.boolean = true; return (BOOL_CONST); }
+f(?i:alse) { yylval.boolean = false; return (BOOL_CONST); }
 
  /*integers*/
 [0-9]+  { yylval.symbol = inttable.add_string(yytext); return (INT_CONST); }
