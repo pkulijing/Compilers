@@ -176,9 +176,9 @@ unsigned int comment_layer = 0;
 
 <INITIAL>"(*" { BEGIN(COMMENT); comment_layer++; }
 <COMMENT>"(*" { comment_layer++; }
-<COMMENT>[(*]?\n { curr_lineno++; }
-<COMMENT>[^*(\n]*|[(][^*\n]|[*][^*)\n]?
+<COMMENT>\n { curr_lineno++; }
 <COMMENT>"*)" { comment_layer--; if (comment_layer == 0) BEGIN(INITIAL); }
+<COMMENT>[^*(\n]*|[(*]
 <COMMENT><<EOF>> { yylval.error_msg = "EOF in comment"; BEGIN(INITIAL); return (ERROR); }
 
  /*Operaters*/
