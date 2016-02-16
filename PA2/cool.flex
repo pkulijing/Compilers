@@ -192,6 +192,7 @@ unsigned int comment_layer = 0;
 ":" { return ':'; }
 ";" { return ';'; }
 "." { return '.'; }
+"@" { return '@'; }
 "=>" { return (DARROW); }
 "<-" { return (ASSIGN); }
 "<=" { return (LE); }
