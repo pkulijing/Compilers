@@ -132,7 +132,7 @@ unsigned int comment_layer = 0;
   }
   *string_buf_ptr = '\n'; string_buf_ptr++; 
 }
-<STRING>\\[^btfn\n] {
+<STRING>\\[^btfn\n\0] {
   if (string_buf_ptr == string_buf_end) { 
     yylval.error_msg = "String constant too long"; 
     BEGIN(ERROR_FIND_END_STRING); 
@@ -151,6 +151,11 @@ unsigned int comment_layer = 0;
     *string_buf_ptr = yytext[i]; 
     string_buf_ptr++;
   } 
+}
+<STRING>\\\0 {
+    yylval.error_msg = "String contains null character"; 
+    BEGIN(ERROR_FIND_END_STRING); 
+    return (ERROR); 
 }
 <STRING>["] { *string_buf_ptr='\0'; yylval.symbol = stringtable.add_string(string_buf); BEGIN(INITIAL); return (STR_CONST); }
 <STRING><<EOF>> { yylval.error_msg = "EOF in string constant"; BEGIN(INITIAL); return (ERROR); }
