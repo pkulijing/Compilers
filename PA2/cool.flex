@@ -33,6 +33,7 @@ extern FILE *fin; /* we read from this file */
 
 char string_buf[MAX_STR_CONST]; /* to assemble string constants */
 char *string_buf_ptr;
+char *string_buf_end = string_buf + MAX_STR_CONST - 1;
 
 extern int curr_lineno;
 extern int verbose_flag;
@@ -78,6 +79,7 @@ unsigned int comment_layer = 0;
 %s STRING
 %s COMMENT_ONE_LINE
 %s COMMENT
+%s ERROR_FIND_END_STRING
 /*
  * Define names for regular expressions here.
  */
@@ -89,17 +91,77 @@ unsigned int comment_layer = 0;
   */
  /*strings*/
 <INITIAL>["] { BEGIN(STRING); string_buf_ptr = string_buf; }
-<STRING>\\b { *string_buf_ptr = '\b'; string_buf_ptr++; }
-<STRING>\\t { *string_buf_ptr = '\t'; string_buf_ptr++; }
-<STRING>\\f { *string_buf_ptr = '\f'; string_buf_ptr++; }
-<STRING>\\n { *string_buf_ptr = '\n'; string_buf_ptr++; }
-<STRING>\\\n { *string_buf_ptr = '\n'; string_buf_ptr++; }
-<STRING>\\
-<STRING>[^"\\\0\n]* { unsigned int i; for (i = 0; i < strlen(yytext); i++) { *string_buf_ptr = yytext[i]; string_buf_ptr++;} }
+<STRING>\\b { 
+  if (string_buf_ptr == string_buf_end) { 
+    yylval.error_msg = "String constant too long"; 
+    BEGIN(ERROR_FIND_END_STRING);  
+    return (ERROR); 
+  }
+  *string_buf_ptr = '\b'; string_buf_ptr++; 
+}
+<STRING>\\t {  
+  if (string_buf_ptr == string_buf_end) { 
+    yylval.error_msg = "String constant too long";
+    BEGIN(ERROR_FIND_END_STRING);  
+    return (ERROR); 
+  }
+  *string_buf_ptr = '\t'; string_buf_ptr++; 
+}
+<STRING>\\f {  
+  if (string_buf_ptr == string_buf_end) { 
+    yylval.error_msg = "String constant too long"; 
+    BEGIN(ERROR_FIND_END_STRING); 
+    return (ERROR); 
+  }
+  *string_buf_ptr = '\f'; string_buf_ptr++; 
+}
+<STRING>\\n {  
+  if (string_buf_ptr == string_buf_end) { 
+    yylval.error_msg = "String constant too long"; 
+    BEGIN(ERROR_FIND_END_STRING); 
+    return (ERROR); 
+  }
+  *string_buf_ptr = '\n'; string_buf_ptr++; 
+}
+<STRING>\\\n { 
+    curr_lineno++;   
+    if (string_buf_ptr == string_buf_end) { 
+    yylval.error_msg = "String constant too long"; 
+    BEGIN(ERROR_FIND_END_STRING); 
+    return (ERROR); 
+  }
+  *string_buf_ptr = '\n'; string_buf_ptr++; 
+}
+<STRING>\\[^btfn\n] {
+  if (string_buf_ptr == string_buf_end) { 
+    yylval.error_msg = "String constant too long"; 
+    BEGIN(ERROR_FIND_END_STRING); 
+    return (ERROR); 
+  }
+  *string_buf_ptr = yytext[1]; string_buf_ptr++; 
+}
+<STRING>[^"\\\0\n]* { 
+  unsigned int i; 
+  for (i = 0; i < strlen(yytext); i++) {
+    if (string_buf_ptr == string_buf_end) { 
+      yylval.error_msg = "String constant too long";
+      BEGIN(ERROR_FIND_END_STRING); 
+      return (ERROR); 
+    }
+    *string_buf_ptr = yytext[i]; 
+    string_buf_ptr++;
+  } 
+}
 <STRING>["] { *string_buf_ptr='\0'; yylval.symbol = stringtable.add_string(string_buf); BEGIN(INITIAL); return (STR_CONST); }
-<STRING><<EOF>> /*report error!*/
-<STRING>\n /*report error!*/
-<STRING>\0 /*report error!*/
+<STRING><<EOF>> { yylval.error_msg = "EOF in string constant"; BEGIN(INITIAL); return (ERROR); }
+<STRING>\n { curr_lineno++; yylval.error_msg = "Unterminated string constant"; BEGIN(INITIAL); return (ERROR); }
+<STRING>\0 { yylval.error_msg = "String contains null character"; BEGIN(ERROR_FIND_END_STRING); return (ERROR); }
+<ERROR_FIND_END_STRING>["] { BEGIN(INITIAL);}
+<ERROR_FIND_END_STRING>\n { curr_lineno++; BEGIN(INITIAL); }
+<ERROR_FIND_END_STRING>\\\n { curr_lineno++; }
+<ERROR_FIND_END_STRING>\\?[^\\\n"]* 
+<ERROR_FIND_END_STRING><<EOF>> { BEGIN(INITIAL); yyterminate(); }
+
 
  /*comments*/
 <INITIAL>"--" { BEGIN(COMMENT_ONE_LINE); }
@@ -109,9 +171,10 @@ unsigned int comment_layer = 0;
 
 <INITIAL>"(*" { BEGIN(COMMENT); comment_layer++; }
 <COMMENT>"(*" { comment_layer++; }
-<COMMENT>[^*()]*|[(][^*]*|[*][^)]* 
+<COMMENT>\n { curr_lineno++; }
+<COMMENT>[^*()\n]*|[(][^*\n]*|[*][^)\n]* 
 <COMMENT>"*)" { comment_layer--; if (comment_layer == 0) BEGIN(INITIAL); }
-<COMMENT><<EOF>> { /*report error!*/}
+<COMMENT><<EOF>> { yylval.error_msg = "EOF in comment"; BEGIN(INITIAL); return (ERROR); }
 
  /*Operaters*/
 "+" { return '+'; }
@@ -132,7 +195,7 @@ unsigned int comment_layer = 0;
 "=>" { return (DARROW); }
 "<-" { return (ASSIGN); }
 "<=" { return (LE); }
-"*)" {/*report error!*/}
+"*)" { yylval.error_msg = "Unmatched *)"; return (ERROR); }
 
  /*new line*/
 \n { curr_lineno++; }
@@ -170,6 +233,10 @@ F(?i:alse) { yylval.boolean = false; return (BOOL_CONST); }
 
  /*EOF*/
 <<EOF>> { yyterminate(); }
+
+ /*unmatched character*/
+.  { yylval.error_msg = yytext; return (ERROR); } 
+
  /*
   * Keywords are case-insensitive except for the values true and false,
   * which must begin with a lower-case letter.
