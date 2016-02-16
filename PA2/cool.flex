@@ -201,7 +201,7 @@ unsigned int comment_layer = 0;
 \n { curr_lineno++; }
 
  /*space*/
-[ \t]+ 
+[ \t\f\r\v]+ 
 
  /*Keywords. Case insensitive*/
 (?i:class)  { return (CLASS); }
