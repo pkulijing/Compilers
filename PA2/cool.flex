@@ -90,7 +90,7 @@ unsigned int comment_layer = 0;
   *  Nested comments
   */
  /*strings*/
-<INITIAL>["] { BEGIN(STRING); string_buf_ptr = string_buf; }
+<INITIAL>\" { BEGIN(STRING); string_buf_ptr = string_buf; }
 <STRING>\\b { 
   if (string_buf_ptr == string_buf_end) { 
     yylval.error_msg = "String constant too long"; 
@@ -157,11 +157,11 @@ unsigned int comment_layer = 0;
     BEGIN(ERROR_FIND_END_STRING); 
     return (ERROR); 
 }
-<STRING>["] { *string_buf_ptr='\0'; yylval.symbol = stringtable.add_string(string_buf); BEGIN(INITIAL); return (STR_CONST); }
+<STRING>\" { *string_buf_ptr='\0'; yylval.symbol = stringtable.add_string(string_buf); BEGIN(INITIAL); return (STR_CONST); }
 <STRING><<EOF>> { yylval.error_msg = "EOF in string constant"; BEGIN(INITIAL); return (ERROR); }
 <STRING>\n { curr_lineno++; yylval.error_msg = "Unterminated string constant"; BEGIN(INITIAL); return (ERROR); }
 <STRING>\0 { yylval.error_msg = "String contains null character"; BEGIN(ERROR_FIND_END_STRING); return (ERROR); }
-<ERROR_FIND_END_STRING>["] { BEGIN(INITIAL);}
+<ERROR_FIND_END_STRING>\" { BEGIN(INITIAL);}
 <ERROR_FIND_END_STRING>\n { curr_lineno++; BEGIN(INITIAL); }
 <ERROR_FIND_END_STRING>\\\n { curr_lineno++; }
 <ERROR_FIND_END_STRING>\\?[^\\\n"]* 
