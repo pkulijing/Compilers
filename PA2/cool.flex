@@ -97,7 +97,7 @@ unsigned int comment_layer = 0;
     BEGIN(ERROR_FIND_END_STRING);  
     return (ERROR); 
   }
-  *string_buf_ptr = '\b'; string_buf_ptr++; 
+  *string_buf_ptr++ = '\b';
 }
 <STRING>\\t {  
   if (string_buf_ptr == string_buf_end) { 
@@ -105,7 +105,7 @@ unsigned int comment_layer = 0;
     BEGIN(ERROR_FIND_END_STRING);  
     return (ERROR); 
   }
-  *string_buf_ptr = '\t'; string_buf_ptr++; 
+  *string_buf_ptr++ = '\t';
 }
 <STRING>\\f {  
   if (string_buf_ptr == string_buf_end) { 
@@ -113,7 +113,7 @@ unsigned int comment_layer = 0;
     BEGIN(ERROR_FIND_END_STRING); 
     return (ERROR); 
   }
-  *string_buf_ptr = '\f'; string_buf_ptr++; 
+  *string_buf_ptr++ = '\f'; 
 }
 <STRING>\\n {  
   if (string_buf_ptr == string_buf_end) { 
@@ -121,7 +121,7 @@ unsigned int comment_layer = 0;
     BEGIN(ERROR_FIND_END_STRING); 
     return (ERROR); 
   }
-  *string_buf_ptr = '\n'; string_buf_ptr++; 
+  *string_buf_ptr++ = '\n';
 }
 <STRING>\\\n { 
     curr_lineno++;   
@@ -130,7 +130,7 @@ unsigned int comment_layer = 0;
     BEGIN(ERROR_FIND_END_STRING); 
     return (ERROR); 
   }
-  *string_buf_ptr = '\n'; string_buf_ptr++; 
+  *string_buf_ptr++ = '\n';
 }
 <STRING>\\[^btfn\n\0] {
   if (string_buf_ptr == string_buf_end) { 
@@ -138,7 +138,7 @@ unsigned int comment_layer = 0;
     BEGIN(ERROR_FIND_END_STRING); 
     return (ERROR); 
   }
-  *string_buf_ptr = yytext[1]; string_buf_ptr++; 
+  *string_buf_ptr++ = yytext[1];  
 }
 <STRING>[^"\\\0\n]* { 
   unsigned int i; 
@@ -148,8 +148,7 @@ unsigned int comment_layer = 0;
       BEGIN(ERROR_FIND_END_STRING); 
       return (ERROR); 
     }
-    *string_buf_ptr = yytext[i]; 
-    string_buf_ptr++;
+    *string_buf_ptr++ = yytext[i]; 
   } 
 }
 <STRING>\\\0 {
