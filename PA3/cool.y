@@ -146,15 +146,16 @@
     /* Precedence declarations go here. */
 
     /* %precedence not working?*/
-    %nonassoc '.'
-    %nonassoc '@'
-    %nonassoc '~'
-    %nonassoc ISVOID
-    %left '*' '/'
-    %left '+' '-'
-    %nonassoc LE '<' '='
-    %nonassoc NOT
+    
     %right ASSIGN
+    %nonassoc NOT
+    %nonassoc LE '<' '='
+    %left '+' '-'
+    %left '*' '/'
+    %nonassoc ISVOID
+    %nonassoc '~'
+    %nonassoc '@'
+    %nonassoc '.'
     
     %%
     /* 
@@ -176,8 +177,8 @@
     ;    
 
     expr_list_semic:
-    expr { $$ = single_Expressions($1); }
-    | expr_list_semic ';' expr { $$ = append_Expressions($1, single_Expressions($3)); }
+    expr ';' { $$ = single_Expressions($1); }
+    | expr_list_semic expr ';' { $$ = append_Expressions($1, single_Expressions($2)); }
     ;
 
     formal_list:
@@ -228,8 +229,8 @@
     | expr '@' TYPEID '.' OBJECTID '(' ')' { $$ = static_dispatch($1, $3, $5, nil_Expressions()); }
     | expr '.' OBJECTID '(' expr_list_comma ')' { $$ = dispatch($1, $3, $5); }    
     | expr '.' OBJECTID '(' ')'  { $$ = dispatch($1, $3, nil_Expressions()); }
-    | OBJECTID '(' ')' { $$ = dispatch(no_expr(), $1, nil_Expressions()); }
-    | OBJECTID '(' expr_list_comma ')' { $$ = dispatch(no_expr(), $1, $3); }
+    | OBJECTID '(' ')' { $$ = dispatch(object(idtable.add_string("self")), $1, nil_Expressions()); }
+    | OBJECTID '(' expr_list_comma ')' { $$ = dispatch(object(idtable.add_string("self")), $1, $3); }
     | LET OBJECTID ':' TYPEID ASSIGN expr IN expr { $$ = let($2, $4, $6, $8); }
     | IF expr THEN expr ELSE expr FI { $$ = cond($2, $4, $6); }
     | WHILE expr LOOP expr POOL { $$ = loop($2, $4); }
