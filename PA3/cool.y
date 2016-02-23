@@ -134,6 +134,7 @@
     %type <class_> class
     %type <classes> class_list
     %type <expression> expr
+    %type <expression> let_expr
     %type <expressions> expr_list_comma
     %type <expressions> expr_list_semic
     %type <case_> case
@@ -223,6 +224,13 @@
     | OBJECTID '(' ')' ':' TYPEID '{' expr '}' ';' { $$ = method($1, nil_Formals(), $5, $7); }
     ;
 
+    let_expr:
+    OBJECTID ':' TYPEID ASSIGN expr IN expr { $$ = let($1, $3, $5, $7); }
+    | OBJECTID ':' TYPEID IN expr { $$ = let($1, $3, no_expr(), $5); }
+    | OBJECTID ':' TYPEID ASSIGN expr ',' let_expr { $$ = let($1, $3, $5, $7); }
+    | OBJECTID ':' TYPEID ',' let_expr { $$ = let($1, $3, no_expr(), $5); }    
+    ;
+
     expr:
     OBJECTID ASSIGN expr { $$ = assign($1, $3); }
     | expr '@' TYPEID '.' OBJECTID '(' expr_list_comma ')' { $$ = static_dispatch($1, $3, $5, $7); }    
@@ -231,7 +239,7 @@
     | expr '.' OBJECTID '(' ')'  { $$ = dispatch($1, $3, nil_Expressions()); }
     | OBJECTID '(' ')' { $$ = dispatch(object(idtable.add_string("self")), $1, nil_Expressions()); }
     | OBJECTID '(' expr_list_comma ')' { $$ = dispatch(object(idtable.add_string("self")), $1, $3); }
-    | LET OBJECTID ':' TYPEID ASSIGN expr IN expr { $$ = let($2, $4, $6, $8); }
+    | LET let_expr { $$ = $2; }
     | IF expr THEN expr ELSE expr FI { $$ = cond($2, $4, $6); }
     | WHILE expr LOOP expr POOL { $$ = loop($2, $4); }
     | CASE expr OF case_list ESAC { $$ = typcase($2, $4); }
