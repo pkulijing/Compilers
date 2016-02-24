@@ -178,6 +178,7 @@
     expr_list_comma_parens:
     '(' expr_list_comma ')' { $$ = $2; }
     | '(' ')' { $$ = nil_Expressions(); }
+    | '(' error ')' { yyerrok; }
     ;   
 
     expr_list_semic:
@@ -217,6 +218,7 @@
 
     case:
     OBJECTID ':' TYPEID DARROW expr ';' { $$ = branch($1, $3, $5); }
+    | error ';' { yyerrok; }
     ;
 
     formal:
@@ -226,7 +228,7 @@
     class	: 
     CLASS TYPEID feature_list_curlys ';'
       { $$ = class_($2,idtable.add_string("Object"), $3, stringtable.add_string(curr_filename)); }
-    | CLASS TYPEID INHERITS TYPEID feature_list ';'
+    | CLASS TYPEID INHERITS TYPEID feature_list_curlys ';'
       { $$ = class_($2,$4,$5,stringtable.add_string(curr_filename)); }
     | error class { yyerrok; }
     ;
@@ -235,6 +237,7 @@
     OBJECTID ':' TYPEID ASSIGN expr ';' { $$ = attr($1, $3, $5); }
     | OBJECTID ':' TYPEID ';' { $$ = attr($1, $3, no_expr()); }
     | OBJECTID formal_list_parens ':' TYPEID '{' expr '}' ';' { $$ = method($1, $2, $4, $6); }
+    | error ';' { yyerrok; }
     ;
 
     let_expr:
@@ -255,6 +258,7 @@
     | IF expr THEN expr ELSE expr FI { $$ = cond($2, $4, $6); }
     | WHILE expr LOOP expr POOL { $$ = loop($2, $4); }
     | CASE expr OF case_list ESAC { $$ = typcase($2, $4); }
+    | CASE error ESAC { yyerrok; }
     | expr_list_semic_curlys { $$ = block($1); }
     | expr '+' expr { $$ = plus($1, $3); }
     | expr '-' expr { $$ = sub($1, $3); }
