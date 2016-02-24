@@ -169,7 +169,7 @@
     
     class_list: 
     class { $$ = single_Classes($1); parse_results = $$; }
-    | class_list class { $$ = append_Classes($1,single_Classes($2)); parse_results = $$; }
+    | class_list class { $$ = append_Classes($1,single_Classes($2)); parse_results = $$; } 
     ;
 
     expr_list_comma:
@@ -215,6 +215,7 @@
       stringtable.add_string(curr_filename)); }
     | CLASS TYPEID INHERITS TYPEID '{' '}' ';'
       { $$ = class_($2, $4, nil_Features(), stringtable.add_string(curr_filename)); }
+    | error class { yyerrok; }
     ;
     
     feature:
@@ -228,7 +229,9 @@
     OBJECTID ':' TYPEID ASSIGN expr IN expr { $$ = let($1, $3, $5, $7); }
     | OBJECTID ':' TYPEID IN expr { $$ = let($1, $3, no_expr(), $5); }
     | OBJECTID ':' TYPEID ASSIGN expr ',' let_expr { $$ = let($1, $3, $5, $7); }
-    | OBJECTID ':' TYPEID ',' let_expr { $$ = let($1, $3, no_expr(), $5); }    
+    | OBJECTID ':' TYPEID ',' let_expr { $$ = let($1, $3, no_expr(), $5); }  
+    | error IN expr { yyerrok; }
+    | error ',' let_expr { $$ = $3; yyerrok; }
     ;
 
     expr:
