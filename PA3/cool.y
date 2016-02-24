@@ -184,7 +184,7 @@
     expr_list_semic:
     expr ';' { $$ = single_Expressions($1); }
     | expr_list_semic expr ';' { $$ = append_Expressions($1, single_Expressions($2)); }
-    | error ';' { yyerrok; }
+    | error ';' { }
     ;
 
     expr_list_semic_curlys:
@@ -218,7 +218,7 @@
 
     case:
     OBJECTID ':' TYPEID DARROW expr ';' { $$ = branch($1, $3, $5); }
-    | error ';' { yyerrok; }
+    | error ';' {  }
     ;
 
     formal:
@@ -237,7 +237,7 @@
     OBJECTID ':' TYPEID ASSIGN expr ';' { $$ = attr($1, $3, $5); }
     | OBJECTID ':' TYPEID ';' { $$ = attr($1, $3, no_expr()); }
     | OBJECTID formal_list_parens ':' TYPEID '{' expr '}' ';' { $$ = method($1, $2, $4, $6); }
-    | error ';' { yyerrok; }
+    | error ';' {  }
     ;
 
     let_expr:
@@ -258,7 +258,6 @@
     | IF expr THEN expr ELSE expr FI { $$ = cond($2, $4, $6); }
     | WHILE expr LOOP expr POOL { $$ = loop($2, $4); }
     | CASE expr OF case_list ESAC { $$ = typcase($2, $4); }
-    | CASE error ESAC { yyerrok; }
     | expr_list_semic_curlys { $$ = block($1); }
     | expr '+' expr { $$ = plus($1, $3); }
     | expr '-' expr { $$ = sub($1, $3); }
