@@ -133,16 +133,14 @@
     %type <program> program
     %type <class_> class
     %type <classes> class_list
-    %type <expression> expr
-    %type <expression> let_expr
-    %type <expressions> expr_list_comma
-    %type <expressions> expr_list_semic
+    %type <expression> expr let_expr
+    %type <expressions> expr_list_comma expr_list_comma_parens expr_list_semic expr_list_semic_curlys
     %type <case_> case
     %type <cases> case_list
     %type <feature> feature
-    %type <features> feature_list
+    %type <features> feature_list feature_list_curlys
     %type <formal> formal
-    %type <formals> formal_list
+    %type <formals> formal_list formal_list_parens
     
     /* Precedence declarations go here. */
 
@@ -175,11 +173,21 @@
     expr_list_comma:
     expr { $$ = single_Expressions($1); }
     | expr_list_comma ',' expr { $$ = append_Expressions($1, single_Expressions($3)); }
-    ;    
+    ; 
+
+    expr_list_comma_parens:
+    '(' expr_list_comma ')' { $$ = $2; }
+    | '(' ')' { $$ = nil_Expressions(); }
+    ;   
 
     expr_list_semic:
     expr ';' { $$ = single_Expressions($1); }
     | expr_list_semic expr ';' { $$ = append_Expressions($1, single_Expressions($2)); }
+    | error ';' { yyerrok; }
+    ;
+
+    expr_list_semic_curlys:
+    '{' expr_list_semic '}' { $$ = $2; }
     ;
 
     formal_list:
@@ -187,9 +195,19 @@
     | formal_list ',' formal { $$ = append_Formals($1, single_Formals($3)); }
     ;
 
+    formal_list_parens:
+    '(' formal_list ')' { $$ = $2; }
+    | '(' ')' { $$ = nil_Formals(); }
+    ;
+
     feature_list:
     feature { $$ = single_Features($1); }
     | feature_list feature { $$ = append_Features($1, single_Features($2)); }
+    ;
+
+    feature_list_curlys:
+    '{' '}' { $$ = nil_Features(); }
+    | '{' feature_list '}' { $$ = $2; }
     ;
 
     case_list:
@@ -206,23 +224,17 @@
     ;
 
     class	: 
-    CLASS TYPEID '{' feature_list '}' ';'
-      { $$ = class_($2,idtable.add_string("Object"), $4, stringtable.add_string(curr_filename)); }
-    | CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
-      { $$ = class_($2,$4,$6,stringtable.add_string(curr_filename)); }
-    | CLASS TYPEID '{' '}' ';' 
-      { $$ = class_($2, idtable.add_string("Object"), nil_Features(), 
-      stringtable.add_string(curr_filename)); }
-    | CLASS TYPEID INHERITS TYPEID '{' '}' ';'
-      { $$ = class_($2, $4, nil_Features(), stringtable.add_string(curr_filename)); }
+    CLASS TYPEID feature_list_curlys ';'
+      { $$ = class_($2,idtable.add_string("Object"), $3, stringtable.add_string(curr_filename)); }
+    | CLASS TYPEID INHERITS TYPEID feature_list ';'
+      { $$ = class_($2,$4,$5,stringtable.add_string(curr_filename)); }
     | error class { yyerrok; }
     ;
     
     feature:
     OBJECTID ':' TYPEID ASSIGN expr ';' { $$ = attr($1, $3, $5); }
     | OBJECTID ':' TYPEID ';' { $$ = attr($1, $3, no_expr()); }
-    | OBJECTID '(' formal_list ')' ':' TYPEID '{' expr '}' ';' { $$ = method($1, $3, $6, $8); }
-    | OBJECTID '(' ')' ':' TYPEID '{' expr '}' ';' { $$ = method($1, nil_Formals(), $5, $7); }
+    | OBJECTID formal_list_parens ':' TYPEID '{' expr '}' ';' { $$ = method($1, $2, $4, $6); }
     ;
 
     let_expr:
@@ -236,17 +248,14 @@
 
     expr:
     OBJECTID ASSIGN expr { $$ = assign($1, $3); }
-    | expr '@' TYPEID '.' OBJECTID '(' expr_list_comma ')' { $$ = static_dispatch($1, $3, $5, $7); }    
-    | expr '@' TYPEID '.' OBJECTID '(' ')' { $$ = static_dispatch($1, $3, $5, nil_Expressions()); }
-    | expr '.' OBJECTID '(' expr_list_comma ')' { $$ = dispatch($1, $3, $5); }    
-    | expr '.' OBJECTID '(' ')'  { $$ = dispatch($1, $3, nil_Expressions()); }
-    | OBJECTID '(' ')' { $$ = dispatch(object(idtable.add_string("self")), $1, nil_Expressions()); }
-    | OBJECTID '(' expr_list_comma ')' { $$ = dispatch(object(idtable.add_string("self")), $1, $3); }
+    | expr '@' TYPEID '.' OBJECTID expr_list_comma_parens { $$ = static_dispatch($1, $3, $5, $6); }    
+    | expr '.' OBJECTID expr_list_comma_parens { $$ = dispatch($1, $3, $4); }    
+    | OBJECTID expr_list_comma_parens { $$ = dispatch(object(idtable.add_string("self")), $1, $2); }
     | LET let_expr { $$ = $2; }
     | IF expr THEN expr ELSE expr FI { $$ = cond($2, $4, $6); }
     | WHILE expr LOOP expr POOL { $$ = loop($2, $4); }
     | CASE expr OF case_list ESAC { $$ = typcase($2, $4); }
-    | '{' expr_list_semic '}' { $$ = block($2); }
+    | expr_list_semic_curlys { $$ = block($1); }
     | expr '+' expr { $$ = plus($1, $3); }
     | expr '-' expr { $$ = sub($1, $3); }
     | expr '*' expr { $$ = mul($1, $3); }
