@@ -9,6 +9,7 @@
   #include "stringtab.h"
   #include "utilities.h"
   
+  
   extern char *curr_filename;
   
   
@@ -146,6 +147,7 @@
 
     /* %precedence not working?*/
     
+    %nonassoc IN
     %right ASSIGN
     %nonassoc NOT
     %nonassoc LE '<' '='
@@ -178,7 +180,6 @@
     expr_list_comma_parens:
     '(' expr_list_comma ')' { $$ = $2; }
     | '(' ')' { $$ = nil_Expressions(); }
-    | '(' error ')' { yyerrok; }
     ;   
 
     expr_list_semic:
@@ -218,7 +219,6 @@
 
     case:
     OBJECTID ':' TYPEID DARROW expr ';' { $$ = branch($1, $3, $5); }
-    | error ';' {  }
     ;
 
     formal:
@@ -230,7 +230,7 @@
       { $$ = class_($2,idtable.add_string("Object"), $3, stringtable.add_string(curr_filename)); }
     | CLASS TYPEID INHERITS TYPEID feature_list_curlys ';'
       { $$ = class_($2,$4,$5,stringtable.add_string(curr_filename)); }
-    | error class { yyerrok; }
+    | error class { yyerrok; $$ = $2; }
     ;
     
     feature:
@@ -245,7 +245,6 @@
     | OBJECTID ':' TYPEID IN expr { $$ = let($1, $3, no_expr(), $5); }
     | OBJECTID ':' TYPEID ASSIGN expr ',' let_expr { $$ = let($1, $3, $5, $7); }
     | OBJECTID ':' TYPEID ',' let_expr { $$ = let($1, $3, no_expr(), $5); }  
-    | error IN expr { yyerrok; }
     | error ',' let_expr { $$ = $3; yyerrok; }
     ;
 
