@@ -32,9 +32,18 @@ public:
 typedef class Class__class *Class_;
 
 class Class__class : public tree_node {
+private:
+   Class_ parent_class;
 public:
    tree_node *copy()		 { return copy_Class_(); }
    virtual Class_ copy_Class_() = 0;
+
+   void set_parent_class(Class_ p) { parent_class = p; }
+   Class_ get_parent_class() { return parent_class; }
+   virtual Symbol get_name() = 0;
+   virtual Symbol get_parent() = 0;
+   virtual Features get_features() = 0;
+   virtual void semant() = 0;
 
 #ifdef Class__EXTRAS
    Class__EXTRAS
@@ -50,6 +59,11 @@ public:
    tree_node *copy()		 { return copy_Feature(); }
    virtual Feature copy_Feature() = 0;
 
+   virtual Symbol get_name() = 0;
+   virtual Formals get_formals() = 0;
+   virtual Symbol get_return_type() = 0;
+   virtual Expression get_expr() = 0;
+
 #ifdef Feature_EXTRAS
    Feature_EXTRAS
 #endif
@@ -63,6 +77,10 @@ class Formal_class : public tree_node {
 public:
    tree_node *copy()		 { return copy_Formal(); }
    virtual Formal copy_Formal() = 0;
+
+   virtual Symbol get_name() = 0;
+   virtual Symbol get_type_decl() = 0;
+
 
 #ifdef Formal_EXTRAS
    Formal_EXTRAS
@@ -162,6 +180,11 @@ public:
    Class_ copy_Class_();
    void dump(ostream& stream, int n);
 
+   Symbol get_name() { return name; }
+   Symbol get_parent() { return parent; }
+   Features get_features() { return features; }
+   void semant();
+
 #ifdef Class__SHARED_EXTRAS
    Class__SHARED_EXTRAS
 #endif
@@ -179,6 +202,10 @@ protected:
    Symbol return_type;
    Expression expr;
 public:
+   Symbol get_name() { return name; }
+   Formals get_formals() { return formals; }
+   Symbol get_return_type() { return return_type; }
+   Expression get_expr() { return expr; }
    method_class(Symbol a1, Formals a2, Symbol a3, Expression a4) {
       name = a1;
       formals = a2;
@@ -212,6 +239,10 @@ public:
    Feature copy_Feature();
    void dump(ostream& stream, int n);
 
+   Symbol get_name() { return name; }
+   Symbol get_type_decl() { return type_decl; }
+   Expression get_init() { return init; }
+
 #ifdef Feature_SHARED_EXTRAS
    Feature_SHARED_EXTRAS
 #endif
@@ -233,6 +264,9 @@ public:
    }
    Formal copy_Formal();
    void dump(ostream& stream, int n);
+
+   Symbol get_name() { return name; }
+   Symbol get_type_decl() { return type_decl; }
 
 #ifdef Formal_SHARED_EXTRAS
    Formal_SHARED_EXTRAS

@@ -5,7 +5,8 @@
 #include <stdarg.h>
 #include "semant.h"
 #include "utilities.h"
-
+#include <map>
+#include <string>
 
 extern int semant_debug;
 extern char *curr_filename;
@@ -81,12 +82,58 @@ static void initialize_constants(void)
     val         = idtable.add_string("_val");
 }
 
+ClassTable::ClassTable(Classes classes) :
+		semant_errors(0),
+		error_stream(cerr) {
 
+	install_basic_classes();
 
-ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) {
+	//Detect previously defined classes
+	for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+		Class_ c = classes->nth(i);
+		Symbol name = c->get_name();
+		if(symbolClassMap.find(name) != symbolClassMap.end()) {
+			semant_error(c) << "Class " << c->get_name()->get_string()
+					<< " was previously defined." << std::endl;
+		} else {
+			symbolClassMap[name] = c;
+		}
+	}
 
-    /* Fill this in */
+	//Detect undefined parent classes
+	if(!errors()) {
+		for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+			Class_ c = classes->nth(i);
+			Symbol parent = c->get_parent();
+			if(get_class_from_name(parent) == NULL) {
+				semant_error(c) << "Class " <<  c->get_name()->get_string() << " inherits from class "
+						<< parent->get_string() << " that is not defined." << std::endl;
+			} else {
+				c->set_parent_class(get_class_from_name(parent));
+			}
+		}
+	}
 
+	//Detect cycle
+	if(!errors()) {
+		for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+			Class_ c = classes->nth(i);
+			for(Class_ d = c->get_parent_class(); d != get_class_from_name(Object); d = d->get_parent_class()) {
+				if(d == c) {
+					semant_error(c) << "Class " << c->get_name()->get_string()
+							<< " is involved in an inheritance cycle." << std::endl;
+					break;
+				}
+			}
+		}
+	}
+}
+
+Class_ ClassTable::get_class_from_name(Symbol s) {
+	if(symbolClassMap.find(s) == symbolClassMap.end()) {
+		return NULL;
+	}
+	return symbolClassMap.at(s);
 }
 
 void ClassTable::install_basic_classes() {
@@ -123,6 +170,9 @@ void ClassTable::install_basic_classes() {
 			       single_Features(method(copy, nil_Formals(), SELF_TYPE, no_expr()))),
 	       filename);
 
+    symbolClassMap[Object] = Object_class;
+    Object_class->set_parent_class(NULL);
+
     // 
     // The IO class inherits from Object. Its methods are
     //        out_string(Str) : SELF_TYPE       writes a string to the output
@@ -143,6 +193,8 @@ void ClassTable::install_basic_classes() {
 					       single_Features(method(in_string, nil_Formals(), Str, no_expr()))),
 			       single_Features(method(in_int, nil_Formals(), Int, no_expr()))),
 	       filename);  
+    symbolClassMap[IO] = IO_class;
+    IO_class->set_parent_class(Object_class);
 
     //
     // The Int class has no methods and only a single attribute, the
@@ -153,12 +205,17 @@ void ClassTable::install_basic_classes() {
 	       Object,
 	       single_Features(attr(val, prim_slot, no_expr())),
 	       filename);
+    symbolClassMap[Int] = Int_class;
+    Int_class->set_parent_class(Object_class);
 
     //
     // Bool also has only the "val" slot.
     //
     Class_ Bool_class =
 	class_(Bool, Object, single_Features(attr(val, prim_slot, no_expr())),filename);
+    symbolClassMap[Bool] = Bool_class;
+    Bool_class->set_parent_class(Object_class);
+
 
     //
     // The class Str has a number of slots and operations:
@@ -188,6 +245,8 @@ void ClassTable::install_basic_classes() {
 						      Str, 
 						      no_expr()))),
 	       filename);
+    symbolClassMap[Str] = Str_class;
+    Str_class->set_parent_class(Object_class);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -237,6 +296,11 @@ ostream& ClassTable::semant_error()
      errors. Part 2) can be done in a second stage, when you want
      to build mycoolc.
  */
+
+void class__class::semant() {
+
+}
+
 void program_class::semant()
 {
     initialize_constants();
@@ -247,8 +311,12 @@ void program_class::semant()
     /* some semantic analysis code may go here */
 
     if (classtable->errors()) {
-	cerr << "Compilation halted due to static semantic errors." << endl;
-	exit(1);
+    	cerr << "Compilation halted due to static semantic errors." << endl;
+    	exit(1);
+    }
+
+    for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+    	classes->nth(i)->semant();
     }
 }
 
