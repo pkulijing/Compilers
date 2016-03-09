@@ -7,6 +7,7 @@
 #include "utilities.h"
 #include <map>
 #include <string>
+#include <cstring>
 
 extern int semant_debug;
 extern char *curr_filename;
@@ -100,12 +101,15 @@ ClassTable::ClassTable(Classes classes) :
 		}
 	}
 
-	//Detect undefined parent classes
+	//Detect undefined parent classes or wrong parent classes
 	if(!errors()) {
 		for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
 			Class_ c = classes->nth(i);
 			Symbol parent = c->get_parent();
-			if(get_class_from_name(parent) == NULL) {
+			if (parent == Int || parent == Bool || parent == Str || parent == SELF_TYPE) {
+				semant_error(c) << "Class " << c->get_name()->get_string()
+						<< " cannot inherit from class " << parent->get_string() << std::endl;
+			} else if(get_class_from_name(parent) == NULL) {
 				semant_error(c) << "Class " <<  c->get_name()->get_string() << " inherits from class "
 						<< parent->get_string() << " that is not defined." << std::endl;
 			} else {
@@ -125,6 +129,13 @@ ClassTable::ClassTable(Classes classes) :
 					break;
 				}
 			}
+		}
+	}
+
+	//Detect Main
+	if(!errors()) {
+		if(get_class_from_name(Main) == NULL) {
+			semant_error() << "Class Main does not exist." << std::endl;
 		}
 	}
 }
@@ -172,6 +183,12 @@ void ClassTable::install_basic_classes() {
 
     symbolClassMap[Object] = Object_class;
     Object_class->set_parent_class(NULL);
+    auto methodTable = Object_class->get_method_table();
+    methodTable->enterscope();
+    methodTable->addid(cool_abort, new std::vector<Symbol>{Object});
+    methodTable->addid(type_name, new std::vector<Symbol>{Str});
+    methodTable->addid(copy, new std::vector<Symbol>{SELF_TYPE});
+    methodTable->exitscope();
 
     // 
     // The IO class inherits from Object. Its methods are
@@ -195,6 +212,13 @@ void ClassTable::install_basic_classes() {
 	       filename);  
     symbolClassMap[IO] = IO_class;
     IO_class->set_parent_class(Object_class);
+    methodTable = IO_class->get_method_table();
+    methodTable->enterscope();
+    methodTable->addid(out_string, new std::vector<Symbol>{Str, SELF_TYPE});
+    methodTable->addid(out_int, new std::vector<Symbol>{Int, SELF_TYPE});
+    methodTable->addid(in_string, new std::vector<Symbol>{Str});
+    methodTable->addid(in_int, new std::vector<Symbol>{Int});
+    methodTable->exitscope();
 
     //
     // The Int class has no methods and only a single attribute, the
@@ -247,6 +271,13 @@ void ClassTable::install_basic_classes() {
 	       filename);
     symbolClassMap[Str] = Str_class;
     Str_class->set_parent_class(Object_class);
+
+    methodTable = Str_class->get_method_table();
+    methodTable->enterscope();
+    methodTable->addid(length, new std::vector<Symbol>{Int});
+    methodTable->addid(concat, new std::vector<Symbol>{Str, Str});
+    methodTable->addid(substr, new std::vector<Symbol>{Int, Int, Str});
+    methodTable->exitscope();
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -281,6 +312,23 @@ ostream& ClassTable::semant_error()
     return error_stream;
 } 
 
+ostream& program_class::semant_error(Class_ c)
+{
+    return semant_error(c->get_filename(),c);
+}
+
+ostream& program_class::semant_error(Symbol filename, tree_node *t)
+{
+    error_stream << filename << ":" << t->get_line_number() << ": ";
+    return semant_error();
+}
+
+ostream& program_class::semant_error()
+{
+    semant_errors++;
+    return error_stream;
+}
+
 
 
 /*   This is the entry point to the semantic checker.
@@ -297,27 +345,145 @@ ostream& ClassTable::semant_error()
      to build mycoolc.
  */
 
-void class__class::semant() {
 
-}
 
 void program_class::semant()
 {
     initialize_constants();
 
-    /* ClassTable constructor may do some semantic analysis */
     ClassTable *classtable = new ClassTable(classes);
 
-    /* some semantic analysis code may go here */
-
     if (classtable->errors()) {
-    	cerr << "Compilation halted due to static semantic errors." << endl;
+    	std::cerr << "Compilation halted due to static semantic errors." << endl;
     	exit(1);
     }
 
+
+    //Add names of attributes and methods to symbol tables.
     for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
-    	classes->nth(i)->semant();
+    	Class_ c = classes->nth(i);
+    	auto objectTable = c->get_object_table();
+    	auto methodTable = c->get_method_table();
+    	objectTable->enterscope();
+    	methodTable->enterscope();
+
+    	Features fs = c->get_features();
+    	for(int j = fs->first(); fs->more(j); j = fs->next(j)) {
+    		Feature f = fs->nth(j);
+    		if(f->get_feature_type() == FEATURE_ATTR) {
+    			attr_class* attr = dynamic_cast<attr_class*>(f);
+    			if(objectTable->probe(attr->get_name())) {
+					semant_error(c) << "Attribute " << attr->get_name()->get_string()
+							<< " is multiply defined in class " << c->get_name()->get_string()
+							<< std::endl;
+    			}
+    			objectTable->addid(attr->get_name(), new Symbol(attr->get_type_decl()));
+    		} else if (f->get_feature_type() == FEATURE_METHOD) {
+    			method_class* method = dynamic_cast<method_class*>(f);
+    			if(methodTable->probe(method->get_name())) {
+					semant_error(c) << "Method " << method->get_name()->get_string()
+							<< " is multiply defined in class " << c->get_name()->get_string()
+							<< std::endl;
+    			}
+    			Formals formals = method->get_formals();
+    			std::vector<Symbol>* types = new std::vector<Symbol>();
+    			for(int k = formals->first(); formals->more(k); k = formals->next(k)){
+    			    Formal formal = formals->nth(k);
+    			    types->push_back(formal->get_type_decl());
+    			}
+    			types->push_back(method->get_return_type());
+    			methodTable->addid(method->get_name(), types);
+    		}
+    	}
+    }
+
+    //Check for redefined attributes and incorrectly redefined methods
+    for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+    	Class_ c = classes->nth(i);
+    	auto objectTable = c->get_object_table();
+    	auto methodTable = c->get_method_table();
+
+    	Features fs = c->get_features();
+    	for(int j = fs->first(); fs->more(j); j = fs->next(j)) {
+    		Feature f = fs->nth(j);
+    		if(f->get_feature_type() == FEATURE_ATTR) {
+    			attr_class* attr = dynamic_cast<attr_class*>(f);
+    			for(Class_ d = c->get_parent_class(); d != NULL; d = d->get_parent_class()) {
+    				if(d->get_object_table()->lookup(attr->get_name()) != NULL) {
+    					semant_error(c) << "Attribute " << attr->get_name()->get_string()
+    							<< " is an attribute of an inherited class." << std::endl;
+    				}
+    			}
+    		} else if (f->get_feature_type() == FEATURE_METHOD) {
+    			method_class* method = dynamic_cast<method_class*>(f);
+    			Formals formals = method->get_formals();
+    			std::vector<Symbol>* types = new std::vector<Symbol>();
+    			for(int k = formals->first(); formals->more(k); k = formals->next(k)){
+    			    Formal formal = formals->nth(k);
+    			    types->push_back(formal->get_type_decl());
+    			}
+    			types->push_back(method->get_return_type());
+    			for(Class_ d = c->get_parent_class(); d != NULL; d = d->get_parent_class()) {
+    				auto parentTypes = d->get_method_table()->lookup(method->get_name());
+    				if(parentTypes != NULL && *parentTypes != *types) {
+    					semant_error(c) << "Method " << method->get_name()->get_string()
+    							<< " is redefined incorrectly." << std::endl;
+    				}
+    			}
+    		}
+    	}
+    }
+
+    if(errors()) {
+    	std::cerr << "Compilation halted due to static semantic errors." << endl;
+        exit(1);
+    }
+
+    for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+     	Class_ c = classes->nth(i);
+     	auto objectTable = c->get_object_table();
+     	auto methodTable = c->get_method_table();
+
+     	Features fs = c->get_features();
+     	for(int j = fs->first(); fs->more(j); j = fs->next(j)) {
+     		Feature f = fs->nth(j);
+     		if(f->get_feature_type() == FEATURE_ATTR) {
+    			attr_class* attr = dynamic_cast<attr_class*>(f);
+     		}
+     	}
     }
 }
+
+//Symbol Class__class::type_check(Expression expr) {
+//	switch(expr->get_expr_init()) {
+//	case EXPR_ASSIGN :
+//		assign_class* expr_assign = dynamic_cast<assign_class*>(expr);
+//		if(*(objectTable->lookup(expr_assign->get_name())) == type_check(expr_assign->get_expr())) {
+//
+//		}
+//	EXPR_DISPATCH,
+//	EXPR_STATIC_DISPATCH,
+//	EXPR_LET,
+//	EXPR_COND,
+//	EXPR_LOOP,
+//	EXPR_BLOCK,
+//	EXPR_TYPCASE,
+//	EXPR_PLUS,
+//	EXPR_SUB,
+//	EXPR_MUL,
+//	EXPR_DIVIDE,
+//	EXPR_NEG,
+//	EXPR_LT,
+//	EXPR_EQ,
+//	EXPR_LEQ,
+//	EXPR_OBJECT,
+//	EXPR_INT_CONST,
+//	EXPR_STRING_CONST,
+//	EXPR_BOOL_CONST,
+//	EXPR_NEW,
+//	EXPR_COMP,
+//	EXPR_ISVOID,
+//	EXPR_NO_EXPR
+//}
 
 

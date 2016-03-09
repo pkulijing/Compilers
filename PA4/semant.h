@@ -25,6 +25,7 @@ private:
   int semant_errors;
   void install_basic_classes();
   std::ostream& error_stream;
+
   std::map<Symbol, Class_> symbolClassMap;
 
 public:
