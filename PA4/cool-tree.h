@@ -190,11 +190,6 @@ public:
    Program copy_Program();
    void dump(ostream& stream, int n);
 
-//   std::ostream& semant_error();
-//   std::ostream& semant_error(Class_ c);
-//   std::ostream& semant_error(Symbol filename, tree_node *t);
-//   int errors() { return semant_errors; }
-
 
 #ifdef Program_SHARED_EXTRAS
    Program_SHARED_EXTRAS
@@ -335,6 +330,9 @@ public:
    }
    Case copy_Case();
    void dump(ostream& stream, int n);
+   Symbol get_name() { return name; }
+   Symbol get_type_decl() { return type_decl; }
+   Expression get_expr() { return expr; }
 
 #ifdef Case_SHARED_EXTRAS
    Case_SHARED_EXTRAS
@@ -479,6 +477,8 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_LOOP; }
+   Expression get_pred() { return pred; }
+   Expression get_body() { return body; }
 
 #ifdef Expression_SHARED_EXTRAS
    Expression_SHARED_EXTRAS
@@ -503,6 +503,8 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_TYPCASE; }
+   Expression get_expr() { return expr; }
+   Cases get_cases() { return cases; }
 
 
 #ifdef Expression_SHARED_EXTRAS
@@ -555,6 +557,10 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_LET; }
+   Symbol get_identifier() { return identifier; }
+   Symbol get_type_decl() { return type_decl; }
+   Expression get_init() { return init; }
+   Expression get_body() { return body; }
 
 
 #ifdef Expression_SHARED_EXTRAS

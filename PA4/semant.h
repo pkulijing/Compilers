@@ -11,6 +11,13 @@
 #define TRUE 1
 #define FALSE 0
 
+enum CompRes {
+	COMP_DIFF_LENGTH,
+	COMP_ARGU_MISS_MATCH,
+	COMP_RETURN_MISS_MATCH,
+	COMP_OK
+};
+
 class ClassTable;
 typedef ClassTable *ClassTableP;
 
@@ -45,10 +52,12 @@ public:
 
   ClassDecl* add_new_class_basic(Class_ c);
 
-  Symbol find_symbol_type(Class_, Symbol);
-  List<Entry>* find_method_signature(Class_, Symbol);
+  Symbol find_symbol_type(Class_ c, Symbol s) ;
+  List<Entry>* find_method_signature(Class_ c, Symbol f);
 
   Symbol check_type(Class_, Expression);
+  CompRes check_method_redefinition (Class_ , method_class*, List<Entry>*);
+  SymbolTable<Symbol, ClassDecl>* get_class_map() { return classMap; }
 
 
   bool subtype(Class_, Symbol, Symbol);

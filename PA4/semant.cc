@@ -19,6 +19,16 @@ extern char *curr_filename;
 // as fixed names used by the runtime system.
 //
 //////////////////////////////////////////////////////////////////////
+static const char* nb_postfix(int i) {
+	if(i == 11 || i == 12 || i == 13)
+		return "th";
+	switch (i % 10) {
+	case 1: return "st";
+	case 2: return "nd";
+	case 3: return "rd";
+	default: return "th";
+	}
+}
 static Symbol 
     arg,
     arg2,
@@ -81,6 +91,26 @@ static void initialize_constants(void)
     val         = idtable.add_string("_val");
 }
 
+CompRes ClassTable::check_method_redefinition (Class_ c, method_class *method, List<Entry>* sig){
+	Formals fs = method->get_formals();
+	Symbol return_type = method->get_return_type();
+	if(fs->len() + 1 != list_length(sig)) {
+		return COMP_DIFF_LENGTH;
+	}
+	for(int i = fs->first(); fs->more(i); i = fs->next(i)) {
+		Formal f = fs->nth(i);
+		Symbol type_decl = f->get_type_decl();
+		if(type_decl != sig->hd()) {
+			return COMP_ARGU_MISS_MATCH;
+		}
+		sig = sig->tl();
+	}
+	if(return_type != sig->hd()) {
+		return COMP_RETURN_MISS_MATCH;
+	}
+	return COMP_OK;
+}
+
 ClassTable::ClassTable(Classes classes) :
 		semant_errors(0),
 		error_stream(cerr),
@@ -91,7 +121,9 @@ ClassTable::ClassTable(Classes classes) :
 	//Add classes to classMap, also detect previously defined classes
 	for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
 		Class_ c = classes->nth(i);
-		if(classMap->lookup(c->get_name())) {
+		if(c->get_name() == SELF_TYPE) {
+			semant_error(c) << "SELF_TYPE cannot be used as class name." << std::endl;
+		} else if(classMap->lookup(c->get_name())) {
 			semant_error(c) << "Class " << c->get_name()->get_string()
 					<< " was previously defined." << std::endl;
 		} else {
@@ -137,9 +169,9 @@ ClassTable::ClassTable(Classes classes) :
 	if(!errors()) {
 		ClassDecl *mainDecl = classMap->lookup(Main);
 		if(mainDecl == NULL) {
-			semant_error() << "Class Main does not exist." << std::endl;
+			semant_error() << "Class Main is not defined." << std::endl;
 		} else if (mainDecl->methodTable->lookup(main_meth) == NULL) {
-			semant_error() << "Class Main does not have main method." << std::endl;
+			semant_error() << "Method main() is not defined in class Main." << std::endl;
 		}
 	}
 
@@ -160,12 +192,45 @@ ClassTable::ClassTable(Classes classes) :
 									<< " is an attribute of an inherited class." << std::endl;
 						}
 					}
+		    		Symbol attrType = attr->get_type_decl();
+		    		if(classMap->lookup(attrType) == NULL) {
+		    			semant_error(c) << "Attribute " << attr->get_name()->get_string()
+		    					<< " is of undefined type " << attrType->get_string()
+								<< ". " << std::endl;
+		    		}
 		    	} else if (f->get_feature_type() == FEATURE_METHOD) {
 		    		method_class *method = dynamic_cast<method_class*>(f);
+
+		    		//check validity of signiture (undefined types). Note that return type can be SELF_TYPE
+    				List<Entry>* sig = classMap->lookup(c->get_name())->methodTable->lookup(method->get_name());
+    				while(sig != NULL && sig->tl() != NULL) {
+    					if(classMap->lookup(sig->hd()) == NULL) {
+    						semant_error(c) << "Method " << method->get_name()->get_string()
+    								<< " contains an undefined type " << sig->hd()->get_string()
+									<< "." << std::endl;
+    					}
+    					sig = sig->tl();
+    				}
+    				if(sig->hd() != SELF_TYPE && classMap->lookup(sig->hd()) == NULL) {
+    				    	semant_error(c) << "Method " << method->get_name()->get_string()
+    				    			<< " returns to an undefined type " << sig->hd()->get_string()
+									<< "." << std::endl;
+    				}
+
 		    		for(Symbol d = decl->parent; d != No_class; d = classMap->lookup(d)->parent) {
 		    			if(classMap->lookup(d)->methodTable->lookup(method->get_name()) != NULL) {
-		    				semant_error(c) << "Method " << method->get_name()->get_string()
-		    						<< " is redefined incorrectly." << std::endl;
+		    				List<Entry>* sigd = classMap->lookup(d)->methodTable->lookup(method->get_name());
+		    				auto comp = check_method_redefinition(c, method, sigd);
+		    				if(comp == COMP_DIFF_LENGTH) {
+		    					semant_error(c) << "Method " << method->get_name()->get_string()
+		    						<< " is redefined with different number of arguments." << std::endl;
+		    				} else if (comp == COMP_ARGU_MISS_MATCH) {
+		    					semant_error(c) << "Method " << method->get_name()->get_string()
+		    						<< " is redefined with different types of arguments." << std::endl;
+		    				} else if (comp == COMP_RETURN_MISS_MATCH) {
+		    					semant_error(c) << "Method " << method->get_name()->get_string()
+		    						<< " is redefined with different return type." << std::endl;
+		    				}
 		    			}
 		    		}
 		    	}
@@ -179,9 +244,8 @@ Symbol ClassTable::find_symbol_type(Class_ c, Symbol s) {
 	Symbol res = decl->attrTable->lookup(s);
 	if(res != NULL) {
 		return res;
-	} else if(decl->parent == No_class) {
-		semant_error(c) << "Identifier " << s->get_string() << " is not defined.";
-		return NULL;
+	} else if(decl->parent == No_class) { //Error should be reported!
+		return No_type;
 	} else {
 		Class_ parentC = classMap->lookup(decl->parent)->body;
 		return find_symbol_type(parentC, s);
@@ -194,7 +258,6 @@ List<Entry>* ClassTable::find_method_signature(Class_ c, Symbol f) {
 	if(res != NULL) {
 		return res;
 	} else if(decl->parent == No_class) {
-		semant_error(c) << "Function " << f->get_string() << " is not defined.";
 		return NULL;
 	} else {
 		Class_ parentC = classMap->lookup(decl->parent)->body;
@@ -207,7 +270,7 @@ ClassDecl* ClassTable::add_new_class_basic(Class_ c) {
     ClassDecl* decl = new ClassDecl();
     decl->body = c;
     decl->parent = c->get_parent();
-    decl->children = new List<Entry>(NULL);
+    decl->children = NULL;
 
     decl->attrTable = new SymbolTable<Symbol, Entry>();
     decl->methodTable = new SymbolTable<Symbol, List<Entry> >();
@@ -216,7 +279,7 @@ ClassDecl* ClassTable::add_new_class_basic(Class_ c) {
 
     Features fs = c->get_features();
 
-    //Add features, also detect multiply defined features
+    //Add features, also detect multiply defined features and duplicate names in formal
     for(int i = fs->first(); fs->more(i); i = fs->next(i)) {
     	Feature f = fs->nth(i);
     	if(f->get_feature_type() == FEATURE_ATTR) {
@@ -240,10 +303,21 @@ ClassDecl* ClassTable::add_new_class_basic(Class_ c) {
     		}
     		List<Entry>* l = new List<Entry>(method->get_return_type());
     		Formals formals = method->get_formals();
+    		decl->attrTable->enterscope();
     		for(int j = formals->first(); formals->more(j); j = formals->next(j)) {
     			Formal formal = formals->nth(formals->len() - 1 - j);
-    			l = new List<Entry>(formal->get_name(), l);
+    			Symbol name = formal->get_name();
+    			Symbol type_decl = formal->get_type_decl();
+    			if(decl->attrTable->probe(name) != NULL) {
+    				semant_error(c) << "Duplicate names in formals." << std::endl;
+    			} else if (name == self){
+    				semant_error(c) << "self cannot be used as a formal name." << std::endl;
+    			} else {
+    				decl->attrTable->addid(name, type_decl);
+    			}
+    			l = new List<Entry>(type_decl, l);
     		}
+    		decl->attrTable->exitscope();
     		decl->methodTable->addid(method->get_name(), l);
     	}
     }
@@ -359,7 +433,7 @@ void ClassTable::install_basic_classes() {
     objDecl->children = new List<Entry>(IO,
     		new List<Entry>(Int,
 					new List<Entry>(Bool,
-							new List<Entry>(Str, objDecl->children))));
+							new List<Entry>(Str))));
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -449,16 +523,78 @@ void program_class::semant()
     	exit(1);
     }
 
+    //Type checking
+    for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+    	Class_ c = classes->nth(i);
+	    Features fs = c->get_features();
 
+		SymbolTable<Symbol, Entry>* attrTable =
+				classtable->get_class_map()->lookup(c->get_name())->attrTable;
+		attrTable->enterscope();
+		attrTable->addid(self, SELF_TYPE);
+
+	    for(int j = fs->first(); fs->more(j); j = fs->next(j)) {
+	    	Feature f = fs->nth(j);
+	    	if(f->get_feature_type() == FEATURE_ATTR) {
+	    		attr_class *attr = dynamic_cast<attr_class*>(f);
+	    		Symbol exprType = classtable->check_type(c, attr->get_init());
+
+	    		if(exprType == No_type || classtable->subtype(c, exprType, attr->get_type_decl()))
+	    			continue;
+	    		else {
+	    			classtable->semant_error(c) << "Attribute " << attr->get_name()
+	    					<< " of declared type " << attr->get_type_decl()->get_string()
+							<< " in Class " << c->get_name() << " is initialized with "
+							<< "expresion of type" << exprType->get_string() << "."
+							<< std::endl;
+	    		}
+	    	} else if (f->get_feature_type() == FEATURE_METHOD) {
+	    		method_class *method = dynamic_cast<method_class*>(f);
+	    		Formals formals = method->get_formals();
+	    		for(int k = formals->first(); formals->more(k); k = formals->next(k)) {
+	    			Formal formal = formals->nth(k);
+	    			attrTable->addid(formal->get_name(), formal->get_type_decl());
+	    		}
+	    		Symbol return_type = method->get_return_type();
+	    		Symbol actual_type = classtable->check_type(c, method->get_expr());
+	    		if(!classtable->subtype(c, actual_type, return_type)) {
+	    			classtable->semant_error(c) << "In method " << method->get_name()
+	    					<< ", type of expression " << actual_type->get_string()
+							<< " does not conform to declared return type "
+							<< return_type->get_string() << "." << std::endl;
+	    		}
+	    	}
+	    }
+		attrTable->exitscope();
+    }
+    if(classtable->errors()) {
+    	std::cerr << "Compilation halted due to static semantic errors." << endl;
+    	exit(1);
+    }
 }
 
+static bool contain(List<Entry>* types, Symbol type) {
+	while(types != NULL) {
+		if(types->hd() == type)
+			return true;
+		types = types->tl();
+	}
+	return false;
+}
 Symbol ClassTable::check_type( Class_ c, Expression expr) {
 	switch(expr->get_expr_init()) {
-	case EXPR_ASSIGN :
+	case EXPR_ASSIGN : {
 		assign_class* expr_assign = dynamic_cast<assign_class*>(expr);
 		Symbol t1 = find_symbol_type(c, expr_assign->get_name());
 		Symbol t2 = check_type(c, expr_assign->get_expr());
-		if(subtype(c, t2,t1)) {
+		if(expr_assign->get_name() == self) {
+			semant_error(c) << "Assignment to self is forbidden." << std::endl;
+			expr->set_type(Object);
+		} else if(t1 == No_type) {
+			expr->set_type(Object);
+			semant_error(c) << "Identifier " << expr_assign->get_name()->get_string()
+					<< " is not defined." << std::endl;
+		} else if(subtype(c, t2,t1)) {
 			expr->set_type(t2);
 		} else {
 			expr->set_type(Object);
@@ -468,61 +604,190 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 					<< "." << std::endl;
 		}
 		break;
-	case EXPR_DISPATCH:
+	}
+	case EXPR_DISPATCH: {
 		dispatch_class* expr_dispatch = dynamic_cast<dispatch_class*>(expr);
-		Expression expr = expr_dispatch->get_expr();
+		Expression expr1 = expr_dispatch->get_expr();
 		Symbol name = expr_dispatch->get_name();
 		Expressions actual = expr_dispatch->get_actual();
 
-		Symbol t1 = check_type(c, expr);
+		Symbol t1 = check_type(c, expr1);
 		Symbol t = (t1 == SELF_TYPE) ? c->get_name() : t1;
 		Class_ m = classMap->lookup(t)->body;
 
 		List<Entry>* sig = find_method_signature(m, name);
-		if(list_length(sig) != actual->len() + 1) {
+		if(sig == NULL) {
+			semant_error(c) << "Function " << name->get_string() << " is not defined for type "
+					<< t->get_string() << "." << std::endl;
+			expr->set_type(Object);
+		} else if(list_length(sig) != actual->len() + 1) {
 			semant_error(c) << "Method " << name->get_string()
 					<< " called with wrong number of arguments." << std::endl;
+			expr->set_type(Object);
 		} else {
 			for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
-				if(!subtype(m, check_type(m, actual->nth(i)), sig->hd())) {
-					semant_error(c) << "In method " << name->get_string()
+				if(!subtype(c, check_type(c, actual->nth(i)), sig->hd())) {
+					semant_error(c) << "In the call of method " << name->get_string()
 							<< ", type " << check_type(m, actual->nth(i))->get_string()
-							<< " of argument " << actual->nth(i)->get_string()
-							<< " does not conform to declared type "
+							<< " of the " << i << nb_postfix(i)
+							<< " argument does not conform to declared type "
+							<< sig->hd()->get_string() << "."
 							<< std::endl;
-
 				}
+				sig = sig->tl();
+			}
+			expr->set_type((sig->hd() == SELF_TYPE) ? t1 : sig->hd());
+		}
+		break;
+	}
+	case EXPR_STATIC_DISPATCH: {
+		static_dispatch_class* expr_static_dispatch = dynamic_cast<static_dispatch_class*>(expr);
+		Expression expr1 = expr_static_dispatch->get_expr();
+		Symbol type_name = expr_static_dispatch->get_type_name();
+		Symbol name = expr_static_dispatch->get_name();
+		Expressions actual = expr_static_dispatch->get_actual();
+
+		Symbol t1 = check_type(c, expr1);
+		if(!subtype(c, t1, type_name)) {
+			semant_error(c) << "In static dispatch, " << t1->get_string()
+					<< " is not a subtype of " << type_name->get_string() << std::endl;
+			expr->set_type(Object);
+		} else {
+			Class_ m = classMap->lookup(type_name)->body;
+			List<Entry>* sig = find_method_signature(m, name);
+			if(sig == NULL) {
+				semant_error(c) << "Function " << name->get_string() << " is not defined for type "
+					<< type_name->get_string() << "." << std::endl;
+			} else	if(list_length(sig) != actual->len() + 1) {
+				semant_error(c) << "Method " << name->get_string()
+						<< " called with wrong number of arguments." << std::endl;
+			} else {
+				for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
+					if(!subtype(c, check_type(c, actual->nth(i)), sig->hd())) {
+						semant_error(c) << "In the call of method " << name->get_string()
+								<< ", type " << check_type(m, actual->nth(i))->get_string()
+								<< " of the " << i << nb_postfix(i)
+								<< " argument does not conform to declared type "
+								<< sig->hd()->get_string() << "."
+								<< std::endl;
+					}
+					sig = sig->tl();
+				}
+				expr->set_type((sig->hd() == SELF_TYPE) ? t1 : sig->hd());
 			}
 		}
-
 		break;
-//	EXPR_STATIC_DISPATCH,
-//	EXPR_LET,
-	case EXPR_COND:
+	}
+	case EXPR_LET: {
+		let_class *expr_let = dynamic_cast<let_class*>(expr);
+		Symbol identifier = expr_let->get_identifier();
+		Symbol type_decl = expr_let->get_type_decl();
+		Expression init = expr_let->get_init();
+		Expression body = expr_let->get_body();
+
+		Symbol t1 = check_type(c, init);
+		SymbolTable<Symbol, Entry>* attrTable = classMap->lookup(c->get_name())->attrTable;
+		attrTable->enterscope();
+
+		if(identifier == self) {
+			expr->set_type(Object);
+			semant_error(c) << "Let binding contains self." << std::endl;
+		} else if(t1 == No_type) {
+			attrTable->addid(identifier, type_decl);
+			Symbol t2 = check_type(c, body);
+			expr->set_type(t2);
+		} else if(!subtype(c, t1, type_decl)) {
+				semant_error(c) << "In let expression, " << identifier->get_string()
+						<< " of type " << type_decl->get_string()
+						<< " is initialised with expression of type " << t1->get_string()
+						<< "." << std::endl;
+				expr->set_type(Object);
+		} else {
+			attrTable->addid(identifier, type_decl);
+			Symbol t2 = check_type(c, body);
+			expr->set_type(t2);
+		}
+		attrTable->exitscope();
+		break;
+	}
+	case EXPR_COND: {
 		cond_class *expr_cond = dynamic_cast<cond_class*>(expr);
 		Symbol tThen = check_type(c, expr_cond->get_then_exp());
 		Symbol tElse = check_type(c, expr_cond->get_else_exp());
 		if(check_type(c, expr_cond->get_pred()) == Bool) {
-			expr->set_type(lub(c, tThen, tElse));
+			Symbol res = lub(c, tThen, tElse);
+			expr->set_type(res);
 		} else {
 			expr->set_type(Object);
 			semant_error(c) << "Predicate used in condition expression is not of type Bool."
 					<< std::endl;
 		}
 		break;
-//	EXPR_LOOP,
-	case EXPR_BLOCK:
+	}
+	case EXPR_LOOP: {
+		loop_class *expr_loop = dynamic_cast<loop_class*>(expr);
+		Symbol t1 = check_type(c, expr_loop->get_pred());
+		Symbol t2 = check_type(c, expr_loop->get_body());
+		if(t1 != Bool) {
+			semant_error(c) << "Predicate of while expression is not of type Bool." << std::endl;
+		}
+		expr->set_type(Object);
+		break;
+	}
+	case EXPR_BLOCK: {
 		block_class *expr_block = dynamic_cast<block_class*>(expr);
 		Expressions body = expr_block->get_body();
 		Symbol blockType = NULL;
 		for(int i = body->first(); body->more(i); i = body->next(i)) {
-			Expression expr = body->nth(i);
-			blockType = check_type(c, expr);
+			Expression expr1 = body->nth(i);
+			blockType = check_type(c, expr1);
 		}
 		expr->set_type(blockType);
+		return blockType;
 		break;
-//	EXPR_TYPCASE,
-	case EXPR_PLUS:
+	}
+	case EXPR_TYPCASE: {
+		typcase_class *expr_case = dynamic_cast<typcase_class*>(expr);
+		Expression expr1 = expr_case->get_expr();
+		check_type(c, expr1);
+		Cases cases = expr_case->get_cases();
+		SymbolTable<Symbol, Entry>* attrTable = classMap->lookup(c->get_name())->attrTable;
+		List<Entry>* return_types = NULL;
+		List<Entry>* decl_types = NULL;
+		for(int i = cases->first(); cases->more(i); i = cases->next(i)) {
+			Case case_ = cases->nth(i);
+			branch_class* branch = dynamic_cast<branch_class*>(case_);
+			if(contain(decl_types, branch->get_type_decl())) {
+				semant_error(c) << "Case contains branches with identical type." << std::endl;
+				expr->set_type(Object);
+				break;
+			} else if(branch->get_type_decl() == SELF_TYPE) {
+				semant_error(c) << "Identifier in a case branch cannot have type SELF_TYPE." << std::endl;
+				expr->set_type(Object);
+				break;
+			} else if(branch->get_name() == self) {
+				semant_error(c) << "Identifier in a case branch cannot have name self." << std::endl;
+				expr->set_type(Object);
+				break;
+			} else {
+				attrTable->enterscope();
+				attrTable->addid(branch->get_name(), branch->get_type_decl());
+				return_types = new List<Entry>(check_type(c, branch->get_expr()), return_types);
+				decl_types = new List<Entry>(branch->get_type_decl(), decl_types);
+				attrTable->exitscope();
+			}
+		}
+		if(!errors()) {
+			Symbol final_type = return_types->hd();
+			while(return_types != NULL) {
+				final_type = lub(c, final_type, return_types->hd());
+				return_types = return_types->tl();
+			}
+			expr->set_type(final_type);
+		}
+		break;
+	}
+	case EXPR_PLUS: {
 		plus_class* expr_plus = dynamic_cast<plus_class*>(expr);
 		Expression e1 = expr_plus->get_e1();
 		Expression e2 = expr_plus->get_e2();
@@ -533,7 +798,8 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 			expr->set_type(Object);
 		}
 		break;
-	case EXPR_SUB:
+	}
+	case EXPR_SUB: {
 		sub_class* expr_sub = dynamic_cast<sub_class*>(expr);
 		Expression e1 = expr_sub->get_e1();
 		Expression e2 = expr_sub->get_e2();
@@ -544,7 +810,8 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 			expr->set_type(Object);
 		}
 		break;
-	case EXPR_MUL:
+	}
+	case EXPR_MUL: {
 		mul_class* expr_mul = dynamic_cast<mul_class*>(expr);
 		Expression e1 = expr_mul->get_e1();
 		Expression e2 = expr_mul->get_e2();
@@ -555,7 +822,8 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 			expr->set_type(Object);
 		}
 		break;
-	case EXPR_DIVIDE:
+	}
+	case EXPR_DIVIDE: {
 		divide_class* expr_divide = dynamic_cast<divide_class*>(expr);
 		Expression e1 = expr_divide->get_e1();
 		Expression e2 = expr_divide->get_e2();
@@ -566,7 +834,8 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 			expr->set_type(Object);
 		}
 		break;
-	case EXPR_NEG:
+	}
+	case EXPR_NEG: {
 		neg_class* expr_neg = dynamic_cast<neg_class*>(expr);
 		Expression e1 = expr_neg->get_e1();
 		if(check_type(c, e1)) {
@@ -576,7 +845,8 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 			expr->set_type(Object);
 		}
 		break;
-	case EXPR_LT:
+	}
+	case EXPR_LT: {
 		lt_class* expr_lt = dynamic_cast<lt_class*>(expr);
 		Expression e1 = expr_lt->get_e1();
 		Expression e2 = expr_lt->get_e2();
@@ -587,7 +857,8 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 			expr->set_type(Object);
 		}
 		break;
-	case EXPR_EQ:
+	}
+	case EXPR_EQ: {
 		eq_class* expr_eq = dynamic_cast<eq_class*>(expr);
 		Expression e1 = expr_eq->get_e1();
 		Expression e2 = expr_eq->get_e2();
@@ -601,7 +872,8 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 					<< std::endl;
 		}
 		break;
-	case EXPR_LEQ:
+	}
+	case EXPR_LEQ: {
 		leq_class* expr_leq = dynamic_cast<leq_class*>(expr);
 		Expression e1 = expr_leq->get_e1();
 		Expression e2 = expr_leq->get_e2();
@@ -612,11 +884,20 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 			expr->set_type(Object);
 		}
 		break;
-	case EXPR_OBJECT:
+	}
+	case EXPR_OBJECT: {
 		object_class* expr_object = dynamic_cast<object_class*>(expr);
 		Symbol name = expr_object->get_name();
-		expr->set_type(find_symbol_type(c, name));
+		Symbol name_type = find_symbol_type(c, name);
+		if(name_type == No_type) {
+			semant_error(c) << "Identifier " << name->get_string()
+				<< " is not defined." << std::endl;
+			expr->set_type(Object);
+		} else {
+			expr->set_type(name_type);
+		}
 		break;
+	}
 	case EXPR_INT_CONST:
 		expr->set_type(Int);
 		break;
@@ -626,14 +907,15 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 	case EXPR_BOOL_CONST:
 		expr->set_type(Bool);
 		break;
-	case EXPR_NEW:
+	case EXPR_NEW: {
 		new__class* expr_new = dynamic_cast<new__class*>(expr);
 		Symbol type_name = expr_new->get_type_name();
 		if(type_name != SELF_TYPE)
 			expr->set_type(type_name);
 		else expr->set_type(SELF_TYPE);
 		break;
-	case EXPR_COMP:
+	}
+	case EXPR_COMP: {
 		comp_class* expr_comp = dynamic_cast<comp_class*>(expr);
 		Expression e1 = expr_comp->get_e1();
 		if(check_type(c, e1) == Bool) {
@@ -643,14 +925,22 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 			semant_error(c) << "NOT used on an expr not of type Bool." << std::endl;
 		}
 		break;
-	case EXPR_ISVOID:
+	}
+	case EXPR_ISVOID: {
 		isvoid_class* expr_isvoid = dynamic_cast<isvoid_class*>(expr);
 		Expression e1 = expr_isvoid->get_e1();
 		check_type(c, e1);
 		expr->set_type(Bool);
 		break;
-//	EXPR_NO_EXPR
 	}
+	case EXPR_NO_EXPR:
+		expr->set_type(No_type);
+		break;
+	default:
+		std::cerr << "Impossible" << std::endl;
+		exit(1);
+	}
+	return expr->get_type();
 }
 
 
