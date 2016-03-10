@@ -56,11 +56,6 @@ public:
    tree_node *copy()		 { return copy_Program(); }
    virtual Program copy_Program() = 0;
 
-//   virtual std::ostream& semant_error() = 0;
-//   virtual std::ostream& semant_error(Class_ c) = 0;
-//   virtual std::ostream& semant_error(Symbol filename, tree_node *t) = 0;
-//   virtual int errors() = 0;
-
 #ifdef Program_EXTRAS
    Program_EXTRAS
 #endif
