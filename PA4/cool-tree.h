@@ -56,10 +56,10 @@ public:
    tree_node *copy()		 { return copy_Program(); }
    virtual Program copy_Program() = 0;
 
-   virtual std::ostream& semant_error() = 0;
-   virtual std::ostream& semant_error(Class_ c) = 0;
-   virtual std::ostream& semant_error(Symbol filename, tree_node *t) = 0;
-   virtual int errors() = 0;
+//   virtual std::ostream& semant_error() = 0;
+//   virtual std::ostream& semant_error(Class_ c) = 0;
+//   virtual std::ostream& semant_error(Symbol filename, tree_node *t) = 0;
+//   virtual int errors() = 0;
 
 #ifdef Program_EXTRAS
    Program_EXTRAS
@@ -71,21 +71,9 @@ public:
 typedef class Class__class *Class_;
 
 class Class__class : public tree_node {
-protected:
-   Class_ parent_class;
-   SymbolTable<Symbol, Symbol>* objectTable;
-   SymbolTable<Symbol, std::vector<Symbol> >* methodTable;
-
 public:
    tree_node *copy()		 { return copy_Class_(); }
    virtual Class_ copy_Class_() = 0;
-
-   void set_parent_class(Class_ p) { parent_class = p; }
-   Class_ get_parent_class() { return parent_class; }
-   SymbolTable<Symbol, std::vector<Symbol> >* get_method_table() { return methodTable; }
-   SymbolTable<Symbol, Symbol>* get_object_table() { return objectTable; }
-
-   Symbol type_check(Expression);
 
    virtual Symbol get_name() = 0;
    virtual Symbol get_parent() = 0;
@@ -193,19 +181,19 @@ typedef Cases_class *Cases;
 class program_class : public Program_class {
 protected:
    Classes classes;
-   std::ostream& error_stream;
-   int semant_errors;
+//   std::ostream& error_stream;
+//   int semant_errors;
 public:
-   program_class(Classes a1) : error_stream(std::cerr), semant_errors(0) {
+   program_class(Classes a1) {
       classes = a1;
    }
    Program copy_Program();
    void dump(ostream& stream, int n);
 
-   std::ostream& semant_error();
-   std::ostream& semant_error(Class_ c);
-   std::ostream& semant_error(Symbol filename, tree_node *t);
-   int errors() { return semant_errors; }
+//   std::ostream& semant_error();
+//   std::ostream& semant_error(Class_ c);
+//   std::ostream& semant_error(Symbol filename, tree_node *t);
+//   int errors() { return semant_errors; }
 
 
 #ifdef Program_SHARED_EXTRAS
@@ -230,8 +218,6 @@ public:
       parent = a2;
       features = a3;
       filename = a4;
-      methodTable = new SymbolTable<Symbol, std::vector<Symbol> >();
-      objectTable = new SymbolTable<Symbol, Symbol>();
    }
    Class_ copy_Class_();
    void dump(ostream& stream, int n);
@@ -403,6 +389,11 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_STATIC_DISPATCH; }
+   Expression get_expr() { return expr; }
+   Symbol get_type_name() { return type_name; }
+   Symbol get_name() { return name; }
+   Expressions get_actual() { return actual; }
+
 
 
 #ifdef Expression_SHARED_EXTRAS
@@ -430,6 +421,9 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_DISPATCH; }
+   Expression get_expr() { return expr; }
+   Symbol get_name() { return name; }
+   Expressions get_actual() { return actual; }
 
 
 #ifdef Expression_SHARED_EXTRAS
@@ -457,6 +451,9 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_COND; }
+   Expression get_pred() { return pred; }
+   Expression get_then_exp() { return then_exp; }
+   Expression get_else_exp() { return else_exp; }
 
 
 #ifdef Expression_SHARED_EXTRAS
@@ -529,6 +526,7 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_BLOCK; }
+   Expressions get_body() { return body; }
 
 #ifdef Expression_SHARED_EXTRAS
    Expression_SHARED_EXTRAS
@@ -582,6 +580,8 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_PLUS; }
+   Expression get_e1() { return e1; }
+   Expression get_e2() { return e2; }
 
 
 #ifdef Expression_SHARED_EXTRAS
@@ -607,7 +607,8 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_SUB; }
-
+   Expression get_e1() { return e1; }
+   Expression get_e2() { return e2; }
 
 #ifdef Expression_SHARED_EXTRAS
    Expression_SHARED_EXTRAS
@@ -632,6 +633,9 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_MUL; }
+   Expression get_e1() { return e1; }
+   Expression get_e2() { return e2; }
+
 
 #ifdef Expression_SHARED_EXTRAS
    Expression_SHARED_EXTRAS
@@ -656,6 +660,8 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_DIVIDE; }
+   Expression get_e1() { return e1; }
+   Expression get_e2() { return e2; }
 
 
 #ifdef Expression_SHARED_EXTRAS
@@ -679,6 +685,7 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_NEG; }
+   Expression get_e1() { return e1; }
 
 
 #ifdef Expression_SHARED_EXTRAS
@@ -704,6 +711,8 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_LT; }
+   Expression get_e1() { return e1; }
+   Expression get_e2() { return e2; }
 
 
 #ifdef Expression_SHARED_EXTRAS
@@ -729,6 +738,8 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_EQ; }
+   Expression get_e1() { return e1; }
+   Expression get_e2() { return e2; }
 
 
 #ifdef Expression_SHARED_EXTRAS
@@ -754,6 +765,8 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_LEQ; }
+   Expression get_e1() { return e1; }
+   Expression get_e2() { return e2; }
 
 #ifdef Expression_SHARED_EXTRAS
    Expression_SHARED_EXTRAS
@@ -776,7 +789,7 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_COMP; }
-
+   Expression get_e1() { return e1; }
 
 #ifdef Expression_SHARED_EXTRAS
    Expression_SHARED_EXTRAS
@@ -867,6 +880,7 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_NEW; }
+   Symbol get_type_name() { return type_name; }
 
 #ifdef Expression_SHARED_EXTRAS
    Expression_SHARED_EXTRAS
@@ -889,6 +903,7 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_ISVOID; }
+   Expression get_e1() { return e1; }
 
 
 #ifdef Expression_SHARED_EXTRAS
@@ -933,7 +948,7 @@ public:
    void dump(ostream& stream, int n);
 
    Expr_init get_expr_init() { return EXPR_OBJECT; }
-
+   Symbol get_name() { return name; }
 
 #ifdef Expression_SHARED_EXTRAS
    Expression_SHARED_EXTRAS

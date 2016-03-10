@@ -7,7 +7,6 @@
 #include "stringtab.h"
 #include "symtab.h"
 #include "list.h"
-#include <map>
 
 #define TRUE 1
 #define FALSE 0
@@ -20,22 +19,40 @@ typedef ClassTable *ClassTableP;
 // you like: it is only here to provide a container for the supplied
 // methods.
 
+struct ClassDecl {
+	Class_ body;
+	Symbol parent;
+	List<Entry>* children;
+	SymbolTable<Symbol, Entry>* attrTable;
+	SymbolTable<Symbol, List<Entry> >* methodTable;
+};
+
 class ClassTable {
 private:
   int semant_errors;
-  void install_basic_classes();
   std::ostream& error_stream;
+  SymbolTable<Symbol, ClassDecl>* classMap;
 
-  std::map<Symbol, Class_> symbolClassMap;
+  void install_basic_classes();
 
 public:
   ClassTable(Classes);
   int errors() { return semant_errors; }
 
-  Class_ get_class_from_name(Symbol);
   std::ostream& semant_error();
   std::ostream& semant_error(Class_ c);
   std::ostream& semant_error(Symbol filename, tree_node *t);
+
+  ClassDecl* add_new_class_basic(Class_ c);
+
+  Symbol find_symbol_type(Class_, Symbol);
+  List<Entry>* find_method_signature(Class_, Symbol);
+
+  Symbol check_type(Class_, Expression);
+
+
+  bool subtype(Class_, Symbol, Symbol);
+  Symbol lub(Class_, Symbol, Symbol);
 };
 
 
