@@ -11,6 +11,7 @@
 #define TRUE 1
 #define FALSE 0
 
+//enum to indicate result of the check of method redefinition.
 enum CompRes {
 	COMP_DIFF_LENGTH,
 	COMP_ARGU_MISS_MATCH,
@@ -21,11 +22,7 @@ enum CompRes {
 class ClassTable;
 typedef ClassTable *ClassTableP;
 
-// This is a structure that may be used to contain the semantic
-// information such as the inheritance graph.  You may use it or not as
-// you like: it is only here to provide a container for the supplied
-// methods.
-
+//A struct to save information of a class.
 struct ClassDecl {
 	Class_ body;
 	Symbol parent;
@@ -33,6 +30,11 @@ struct ClassDecl {
 	SymbolTable<Symbol, Entry>* attrTable;
 	SymbolTable<Symbol, List<Entry> >* methodTable;
 };
+
+// This is a structure that may be used to contain the semantic
+// information such as the inheritance graph.  You may use it or not as
+// you like: it is only here to provide a container for the supplied
+// methods.
 
 class ClassTable {
 private:

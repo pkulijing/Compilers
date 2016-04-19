@@ -10,15 +10,7 @@
 extern int semant_debug;
 extern char *curr_filename;
 
-//////////////////////////////////////////////////////////////////////
-//
-// Symbols
-//
-// For convenience, a large number of symbols are predefined here.
-// These symbols include the primitive type and method names, as well
-// as fixed names used by the runtime system.
-//
-//////////////////////////////////////////////////////////////////////
+//helper function to display ordinal number (1st, 2nd, 3rd, 4th, etc.)
 static const char* nb_postfix(int i) {
 	if(i == 11 || i == 12 || i == 13)
 		return "th";
@@ -29,6 +21,17 @@ static const char* nb_postfix(int i) {
 	default: return "th";
 	}
 }
+
+//////////////////////////////////////////////////////////////////////
+//
+// Symbols
+//
+// For convenience, a large number of symbols are predefined here.
+// These symbols include the primitive type and method names, as well
+// as fixed names used by the runtime system.
+//
+//////////////////////////////////////////////////////////////////////
+
 static Symbol 
     arg,
     arg2,
@@ -91,6 +94,7 @@ static void initialize_constants(void)
     val         = idtable.add_string("_val");
 }
 
+//Check if method is redefined properly: argument types and return type should match with parent class.
 CompRes ClassTable::check_method_redefinition (Class_ c, method_class *method, List<Entry>* sig){
 	Formals fs = method->get_formals();
 	Symbol return_type = method->get_return_type();
@@ -111,6 +115,7 @@ CompRes ClassTable::check_method_redefinition (Class_ c, method_class *method, L
 	return COMP_OK;
 }
 
+//Build the class table.
 ClassTable::ClassTable(Classes classes) :
 		semant_errors(0),
 		error_stream(cerr),
@@ -239,6 +244,7 @@ ClassTable::ClassTable(Classes classes) :
 	}
 }
 
+
 Symbol ClassTable::find_symbol_type(Class_ c, Symbol s) {
 	ClassDecl *decl = classMap->lookup(c->get_name());
 	Symbol res = decl->attrTable->lookup(s);
@@ -265,6 +271,7 @@ List<Entry>* ClassTable::find_method_signature(Class_ c, Symbol f) {
 	}
 }
 
+//Add a class to the class table. Return the ClassDecl for this class.
 ClassDecl* ClassTable::add_new_class_basic(Class_ c) {
 
     ClassDecl* decl = new ClassDecl();
@@ -284,15 +291,18 @@ ClassDecl* ClassTable::add_new_class_basic(Class_ c) {
     	Feature f = fs->nth(i);
     	if(f->get_feature_type() == FEATURE_ATTR) {
     		attr_class *attr = dynamic_cast<attr_class*>(f);
+    		//Check multiple definition of attribute.
     		if(decl->attrTable->lookup(attr->get_name()) != NULL) {
     			semant_error(c) << "Attribute " << attr->get_name()->get_string()
     					<< " is multiply defined in class " << c->get_name()->get_string()
 						<< std::endl;
     		}
+    		//Check for attribute named "self" (forbidden"
     		if(attr->get_name() == self) {
     			semant_error(c) << "Class " << c->get_name()->get_string()
     					<< " has an attribute named self." << std::endl;
     		}
+    		//Valid attribute definition. Add it to the attrTable in the ClassDecl of the class.
     		decl->attrTable->addid(attr->get_name(), attr->get_type_decl());
     	} else if (f->get_feature_type() == FEATURE_METHOD) {
     		method_class *method = dynamic_cast<method_class*>(f);
@@ -303,7 +313,10 @@ ClassDecl* ClassTable::add_new_class_basic(Class_ c) {
     		}
     		List<Entry>* l = new List<Entry>(method->get_return_type());
     		Formals formals = method->get_formals();
+
+    		//enterscope here because a formal parameter hides attribute of the same name.
     		decl->attrTable->enterscope();
+
     		for(int j = formals->first(); formals->more(j); j = formals->next(j)) {
     			Formal formal = formals->nth(formals->len() - 1 - j);
     			Symbol name = formal->get_name();
@@ -317,7 +330,10 @@ ClassDecl* ClassTable::add_new_class_basic(Class_ c) {
     			}
     			l = new List<Entry>(type_decl, l);
     		}
+
+    		//Exit scope here because formal parameters previously added should be discarded.
     		decl->attrTable->exitscope();
+
     		decl->methodTable->addid(method->get_name(), l);
     	}
     }
@@ -430,6 +446,7 @@ void ClassTable::install_basic_classes() {
     add_new_class_basic(Int_class);
     add_new_class_basic(Bool_class);
     add_new_class_basic(Str_class);
+    //Add childrens for Object clas.
     objDecl->children = new List<Entry>(IO,
     		new List<Entry>(Int,
 					new List<Entry>(Bool,
@@ -481,6 +498,7 @@ bool ClassTable::subtype(Class_ c, Symbol s1, Symbol s2) {
 	}
 }
 
+//Minimal common ancestor of s1 and s2
 Symbol ClassTable::lub(Class_ c, Symbol s1, Symbol s2) {
 	if(subtype(c, s1, s2)) { //including both SELF_TYPE
 		return s2;
@@ -648,7 +666,12 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 		Expressions actual = expr_static_dispatch->get_actual();
 
 		Symbol t1 = check_type(c, expr1);
-		if(!subtype(c, t1, type_name)) {
+
+		if(!classMap->lookup(type_name)) {
+			semant_error(c) << "In static dispatch, class " <<  type_name->get_string()
+								<< " is not defined." << std::endl;
+			expr->set_type(Object);
+		} else if(!subtype(c, t1, type_name)) {
 			semant_error(c) << "In static dispatch, " << t1->get_string()
 					<< " is not a subtype of " << type_name->get_string() << std::endl;
 			expr->set_type(Object);
@@ -910,9 +933,16 @@ Symbol ClassTable::check_type( Class_ c, Expression expr) {
 	case EXPR_NEW: {
 		new__class* expr_new = dynamic_cast<new__class*>(expr);
 		Symbol type_name = expr_new->get_type_name();
-		if(type_name != SELF_TYPE)
+
+		if(type_name == SELF_TYPE)
+			expr->set_type(SELF_TYPE);
+		else if(classMap->lookup(type_name))
 			expr->set_type(type_name);
-		else expr->set_type(SELF_TYPE);
+		else {//a class that does not exist is used here.
+			expr->set_type(Object);
+			semant_error(c) << "Class " << type_name->get_string()
+				<< " is not defined." << std::endl;
+		}
 		break;
 	}
 	case EXPR_COMP: {
