@@ -28,6 +28,10 @@
 extern void emit_string_constant(ostream& str, char *s);
 extern int cgen_debug;
 
+const int MY_INT_TAG = 2;
+const int MY_STRING_TAG = 3;
+const int MY_BOOL_TAG = 4;
+const int FIRST_NONBASIC_CLASS_TAG = 5;
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
 // If e : No_type, then no code is generated for e.
@@ -619,9 +623,9 @@ void CgenClassTable::code_constants()
 
 CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 {
-   stringclasstag = 0 /* Change to your String class tag here */;
-   intclasstag =    0 /* Change to your Int class tag here */;
-   boolclasstag =   0 /* Change to your Bool class tag here */;
+   stringclasstag = MY_STRING_TAG /* Change to your String class tag here */;
+   intclasstag =    MY_INT_TAG /* Change to your Int class tag here */;
+   boolclasstag =   MY_BOOL_TAG /* Change to your Bool class tag here */;
 
    enterscope();
    if (cgen_debug) cout << "Building CgenClassTable" << endl;
