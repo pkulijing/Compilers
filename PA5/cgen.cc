@@ -29,8 +29,8 @@ extern void emit_string_constant(ostream& str, char *s);
 extern int cgen_debug;
 
 const int MY_INT_TAG = 2;
-const int MY_STRING_TAG = 3;
-const int MY_BOOL_TAG = 4;
+const int MY_BOOL_TAG = 3;
+const int MY_STRING_TAG = 4;
 const int FIRST_NONBASIC_CLASS_TAG = 5;
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -403,12 +403,7 @@ void StringEntry::code_def(ostream& s, int stringclasstag)
   code_ref(s);  s  << LABEL                                             // label
       << WORD << stringclasstag << endl                                 // tag
       << WORD << (DEFAULT_OBJFIELDS + STRING_SLOTS + (len+4)/4) << endl // size
-      << WORD;
-
-
- /***** Add dispatch information for class String ******/
-
-      s << endl;                                              // dispatch table
+      << WORD << STRINGNAME << DISPTAB_SUFFIX << endl; 					// dispatch table
       s << WORD;  lensym->code_ref(s);  s << endl;            // string length
   emit_string_constant(s,str);                                // ascii string
   s << ALIGN;                                                 // align to word
@@ -446,11 +441,7 @@ void IntEntry::code_def(ostream &s, int intclasstag)
   code_ref(s);  s << LABEL                                // label
       << WORD << intclasstag << endl                      // class tag
       << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
-      << WORD; 
-
- /***** Add dispatch information for class Int ******/
-
-      s << endl;                                          // dispatch table
+      << WORD << INTNAME << DISPTAB_SUFFIX << endl;
       s << WORD << str << endl;                           // integer value
 }
 
@@ -490,11 +481,7 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
   code_ref(s);  s << LABEL                                  // label
       << WORD << boolclasstag << endl                       // class tag
       << WORD << (DEFAULT_OBJFIELDS + BOOL_SLOTS) << endl   // object size
-      << WORD;
-
- /***** Add dispatch information for class Bool ******/
-
-      s << endl;                                            // dispatch table
+      << WORD << BOOLNAME << DISPTAB_SUFFIX << endl;        // dispatch table
       s << WORD << val << endl;                             // value (0 or 1)
 }
 
