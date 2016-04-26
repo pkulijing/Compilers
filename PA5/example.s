@@ -267,12 +267,19 @@ Object_dispTab:
 	.word	Object.abort
 	.word	Object.type_name
 	.word	Object.copy
+	.word	-1
 Main_protObj:
+	.word	-1
 C_protObj:
+	.word	-1
 String_protObj:
+	.word	-1
 Bool_protObj:
+	.word	-1
 Int_protObj:
+	.word	-1
 IO_protObj:
+	.word	-1
 Object_protObj:
 	.globl	heap_start
 heap_start:

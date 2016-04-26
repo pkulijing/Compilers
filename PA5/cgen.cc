@@ -846,8 +846,12 @@ void CgenClassTable::code_protObjs() {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
 		if(cgen_debug) cout << "coding prototype object for class " << node->name->get_string() << endl;
+		str << WORD << "-1" << endl;
 		str << node->get_name()->get_string() << PROTOBJ_SUFFIX << LABEL;
-		}
+		str << WORD << endl; //tag
+		str << WORD << endl; //size
+		str << WORD << node->name->get_string() << DISPTAB_SUFFIX << endl;
+	}
 }
 
 void CgenClassTable::code()

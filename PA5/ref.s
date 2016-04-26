@@ -25,7 +25,7 @@ _MemMgr_COLLECTOR:
 _MemMgr_TEST:
 	.word	0
 	.word	-1
-str_const9:
+str_const10:
 	.word	4
 	.word	5
 	.word	String_dispTab
@@ -33,12 +33,21 @@ str_const9:
 	.byte	0	
 	.align	2
 	.word	-1
-str_const8:
+str_const9:
 	.word	4
 	.word	6
 	.word	String_dispTab
 	.word	int_const2
 	.ascii	"Main"
+	.byte	0	
+	.align	2
+	.word	-1
+str_const8:
+	.word	4
+	.word	5
+	.word	String_dispTab
+	.word	int_const0
+	.ascii	"D"
 	.byte	0	
 	.align	2
 	.word	-1
@@ -181,6 +190,7 @@ class_nameTab:
 	.word	str_const6
 	.word	str_const7
 	.word	str_const8
+	.word	str_const9
 class_objTab:
 	.word	Object_protObj
 	.word	Object_init
@@ -194,6 +204,8 @@ class_objTab:
 	.word	String_init
 	.word	C_protObj
 	.word	C_init
+	.word	D_protObj
+	.word	D_init
 	.word	Main_protObj
 	.word	Main_init
 Object_dispTab:
@@ -206,6 +218,11 @@ Main_dispTab:
 	.word	Object.copy
 	.word	Main.main
 C_dispTab:
+	.word	Object.abort
+	.word	Object.type_name
+	.word	Object.copy
+	.word	C.init
+D_dispTab:
 	.word	Object.abort
 	.word	Object.type_name
 	.word	Object.copy
@@ -240,7 +257,7 @@ Object_protObj:
 	.word	Object_dispTab
 	.word	-1
 Main_protObj:
-	.word	6
+	.word	7
 	.word	4
 	.word	Main_dispTab
 	.word	0
@@ -251,6 +268,14 @@ C_protObj:
 	.word	C_dispTab
 	.word	int_const1
 	.word	bool_const0
+	.word	-1
+D_protObj:
+	.word	6
+	.word	6
+	.word	D_dispTab
+	.word	int_const1
+	.word	bool_const0
+	.word	0
 	.word	-1
 String_protObj:
 	.word	4
@@ -319,6 +344,20 @@ C_init:
 	addiu	$fp $sp 4
 	move	$s0 $a0
 	jal	Object_init
+	move	$a0 $s0
+	lw	$fp 12($sp)
+	lw	$s0 8($sp)
+	lw	$ra 4($sp)
+	addiu	$sp $sp 12
+	jr	$ra	
+D_init:
+	addiu	$sp $sp -12
+	sw	$fp 12($sp)
+	sw	$s0 8($sp)
+	sw	$ra 4($sp)
+	addiu	$fp $sp 4
+	move	$s0 $a0
+	jal	C_init
 	move	$a0 $s0
 	lw	$fp 12($sp)
 	lw	$s0 8($sp)

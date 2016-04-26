@@ -10,6 +10,10 @@ class C {
 	};
 };
 
+class D inherits C {
+	d : IO;
+};
+
 Class Main {
 	c : C;
 	main():C {
