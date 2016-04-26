@@ -806,7 +806,49 @@ void CgenNode::set_parentnd(CgenNodeP p)
   parentnd = p;
 }
 
+void CgenClassTable::code_class_nameTab() {
+	str << CLASSNAMETAB << LABEL;
+	for(List<CgenNode>* l = nds; l; l = l->tl()) {
+		str << WORD;
+		stringtable.lookup_string(l->hd()->name->get_string())->code_ref(str);
+		str << endl;
+	}
+}
 
+void CgenClassTable::code_class_objTab() {
+	str << CLASSOBJTAB << LABEL;
+	for(List<CgenNode>* l = nds; l; l = l->tl()) {
+		str << WORD << l->hd()->name->get_string() << PROTOBJ_SUFFIX << endl;
+		str << WORD << l->hd()->name->get_string() << CLASSINIT_SUFFIX << endl;
+	}
+}
+
+void CgenClassTable::code_dispTabs() {
+	for(List<CgenNode>* l = nds; l; l = l->tl()) {
+		CgenNode* node = l->hd();
+		if(cgen_debug) cout << "coding dispatch table for class " << node->name->get_string() << endl;
+		str << node->get_name()->get_string() << DISPTAB_SUFFIX << LABEL;
+		while(node->get_name() != No_class) {
+			Features fs = node->features;
+			for(int i = fs->first(); fs->more(i); i = fs->next(i)) {
+				Feature f = fs->nth(i);
+				if(f->get_feature_type() == FEATURE_METHOD) {
+					str << WORD << node->get_name()->get_string() << METHOD_SEP
+						<< dynamic_cast<method_class*>(f)->name->get_string() << endl;
+				}
+			}
+			node = node->get_parentnd();
+		}
+	}
+}
+
+void CgenClassTable::code_protObjs() {
+	for(List<CgenNode>* l = nds; l; l = l->tl()) {
+		CgenNode* node = l->hd();
+		if(cgen_debug) cout << "coding prototype object for class " << node->name->get_string() << endl;
+		str << node->get_name()->get_string() << PROTOBJ_SUFFIX << LABEL;
+		}
+}
 
 void CgenClassTable::code()
 {
@@ -818,6 +860,19 @@ void CgenClassTable::code()
 
   if (cgen_debug) cout << "coding constants" << endl;
   code_constants();
+
+  if (cgen_debug) cout << "coding class name table" << endl;
+  code_class_nameTab();
+
+  if (cgen_debug) cout << "coding class object table" << endl;
+  code_class_objTab();
+
+  if (cgen_debug) cout << "coding class dispatch table" << endl;
+  code_dispTabs();
+
+  if (cgen_debug) cout << "coding prototype objects" << endl;
+  code_protObjs();
+
 
 //                 Add your code to emit
 //                   - prototype objects

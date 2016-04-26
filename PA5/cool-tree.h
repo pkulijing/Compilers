@@ -12,6 +12,11 @@
 #include "tree.h"
 #include "cool-tree.handcode.h"
 
+enum Feature_type {
+	FEATURE_ATTR,
+	FEATURE_METHOD
+};
+
 
 // define the class for phylum
 // define simple phylum - Program
@@ -49,6 +54,7 @@ class Feature_class : public tree_node {
 public:
    tree_node *copy()		 { return copy_Feature(); }
    virtual Feature copy_Feature() = 0;
+   virtual Feature_type get_feature_type() = 0;
 
 #ifdef Feature_EXTRAS
    Feature_EXTRAS
@@ -187,6 +193,7 @@ public:
    }
    Feature copy_Feature();
    void dump(ostream& stream, int n);
+   Feature_type get_feature_type() { return FEATURE_METHOD; }
 
 #ifdef Feature_SHARED_EXTRAS
    Feature_SHARED_EXTRAS
@@ -211,6 +218,8 @@ public:
    }
    Feature copy_Feature();
    void dump(ostream& stream, int n);
+   Feature_type get_feature_type() { return FEATURE_ATTR; }
+
 
 #ifdef Feature_SHARED_EXTRAS
    Feature_SHARED_EXTRAS

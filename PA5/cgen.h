@@ -32,6 +32,11 @@ private:
    void code_select_gc();
    void code_constants();
 
+   void code_class_nameTab();
+   void code_class_objTab();
+   void code_dispTabs();
+   void code_protObjs();
+
 // The following creates an inheritance graph from
 // a list of classes.  The graph is implemented as
 // a tree of `CgenNode', and class names are placed
