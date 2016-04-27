@@ -907,6 +907,10 @@ void CgenClassTable::code_protObjs() {
 	}
 }
 
+void CgenClassTable::code_object_initializer() {
+
+}
+
 void CgenClassTable::code()
 {
   if (cgen_debug) cout << "coding global data" << endl;
