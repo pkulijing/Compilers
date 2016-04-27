@@ -28,6 +28,8 @@
 extern void emit_string_constant(ostream& str, char *s);
 extern int cgen_debug;
 
+const int MY_OBJECT_TAG = 0;
+const int MY_IO_TAG = 1;
 const int MY_INT_TAG = 2;
 const int MY_BOOL_TAG = 3;
 const int MY_STRING_TAG = 4;
@@ -610,9 +612,9 @@ void CgenClassTable::code_constants()
 
 CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 {
-   stringclasstag = MY_STRING_TAG /* Change to your String class tag here */;
-   intclasstag =    MY_INT_TAG /* Change to your Int class tag here */;
-   boolclasstag =   MY_BOOL_TAG /* Change to your Bool class tag here */;
+   stringclasstag = MY_STRING_TAG;
+   intclasstag =    MY_INT_TAG;
+   boolclasstag =   MY_BOOL_TAG;
 
    enterscope();
    if (cgen_debug) cout << "Building CgenClassTable" << endl;
@@ -641,13 +643,13 @@ void CgenClassTable::install_basic_classes()
 //
   addid(No_class,
 	new CgenNode(class_(No_class,No_class,nil_Features(),filename),
-			    Basic,this));
+			    Basic,this, -1));
   addid(SELF_TYPE,
 	new CgenNode(class_(SELF_TYPE,No_class,nil_Features(),filename),
-			    Basic,this));
+			    Basic,this, -1));
   addid(prim_slot,
 	new CgenNode(class_(prim_slot,No_class,nil_Features(),filename),
-			    Basic,this));
+			    Basic,this, -1));
 
 // 
 // The Object class has no parent class. Its methods are
@@ -668,7 +670,7 @@ void CgenClassTable::install_basic_classes()
            single_Features(method(type_name, nil_Formals(), Str, no_expr()))),
            single_Features(method(copy, nil_Formals(), SELF_TYPE, no_expr()))),
 	   filename),
-    Basic,this));
+    Basic,this, MY_OBJECT_TAG));
 
 // 
 // The IO class inherits from Object. Its methods are
@@ -691,7 +693,7 @@ void CgenClassTable::install_basic_classes()
             single_Features(method(in_string, nil_Formals(), Str, no_expr()))),
             single_Features(method(in_int, nil_Formals(), Int, no_expr()))),
 	   filename),	    
-    Basic,this));
+    Basic,this, MY_IO_TAG));
 
 //
 // The Int class has no methods and only a single attribute, the
@@ -703,7 +705,7 @@ void CgenClassTable::install_basic_classes()
 	    Object,
             single_Features(attr(val, prim_slot, no_expr())),
 	    filename),
-     Basic,this));
+     Basic,this, MY_INT_TAG));
 
 //
 // Bool also has only the "val" slot.
@@ -711,7 +713,7 @@ void CgenClassTable::install_basic_classes()
     install_class(
      new CgenNode(
       class_(Bool, Object, single_Features(attr(val, prim_slot, no_expr())),filename),
-      Basic,this));
+      Basic,this, MY_BOOL_TAG));
 
 //
 // The class Str has a number of slots and operations:
@@ -742,7 +744,7 @@ void CgenClassTable::install_basic_classes()
 				   Str, 
 				   no_expr()))),
 	     filename),
-        Basic,this));
+        Basic,this, MY_STRING_TAG));
 
 }
 
@@ -768,8 +770,9 @@ void CgenClassTable::install_class(CgenNodeP nd)
 
 void CgenClassTable::install_classes(Classes cs)
 {
-  for(int i = cs->first(); cs->more(i); i = cs->next(i))
-    install_class(new CgenNode(cs->nth(i),NotBasic,this));
+	int tag = FIRST_NONBASIC_CLASS_TAG;
+	for(int i = cs->first(); cs->more(i); i = cs->next(i))
+		install_class(new CgenNode(cs->nth(i),NotBasic,this, tag++));
 }
 
 //
@@ -842,15 +845,65 @@ void CgenClassTable::code_dispTabs() {
 	}
 }
 
+
+
+void CgenNode::code_attrs(ostream& s) {
+	if(basic()) {
+		if(name == Object || name == IO) return;
+		else if(name == Int || name == Bool) s << WORD << 0 << endl;
+		else if(name == Str) {
+			s << WORD;
+			inttable.lookup_string("0")->code_ref(s);
+			s << 0 << endl;
+		}
+		else {
+			cerr << "WTF?" << endl;
+		}
+		return;
+	}
+	parentnd->code_attrs(s);
+	for(int i = features->first(); features->more(i); i = features->next(i)) {
+		Feature f = features->nth(i);
+		if(f->get_feature_type() == FEATURE_ATTR) {
+			attr_class* a = dynamic_cast<attr_class*>(f);
+			s << WORD;
+			if(a->type_decl == Bool) falsebool.code_ref(s);
+			else if(a->type_decl == Int) inttable.lookup_string("0")->code_ref(s);
+			else if(a->type_decl == Str) stringtable.lookup_string("")->code_ref(s);
+			else s << 0;
+			s << endl;
+		}
+	}
+}
+
+int CgenNode::size_word() {
+	if(basic()) {
+		if(name == IO || name == Object) return 3;
+		else if(name == Int || name == Bool) return 4;
+		else if(name == Str) return 5;
+		else {
+			cerr << "WTF?" << endl;
+			return -1;
+		}
+	}
+	int val = parentnd->size_word();
+	for(int i = features->first(); features->more(i); i = features->next(i)) {
+		if(features->nth(i)->get_feature_type() == FEATURE_ATTR)
+			++val;
+	}
+	return val;
+}
+
 void CgenClassTable::code_protObjs() {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
 		if(cgen_debug) cout << "coding prototype object for class " << node->name->get_string() << endl;
 		str << WORD << "-1" << endl;
 		str << node->get_name()->get_string() << PROTOBJ_SUFFIX << LABEL;
-		str << WORD << endl; //tag
-		str << WORD << endl; //size
+		str << WORD << node->get_tag() << endl; //tag
+		str << WORD << node->size_word() << endl; //size
 		str << WORD << node->name->get_string() << DISPTAB_SUFFIX << endl;
+		node->code_attrs(str);
 	}
 }
 
@@ -879,13 +932,16 @@ void CgenClassTable::code()
 
 
 //                 Add your code to emit
-//                   - prototype objects
-//                   - class_nameTab
-//                   - dispatch tables
+//                   - prototype objects 			done
+//                   - class_nameTab				done
+//                   - dispatch tables				done
 //
 
   if (cgen_debug) cout << "coding global text" << endl;
   code_global_text();
+
+  if (cgen_debug) cout << "coding object initializer" << endl;
+  code_object_initializer();
 
 //                 Add your code to emit
 //                   - object initializer
@@ -907,11 +963,12 @@ CgenNodeP CgenClassTable::root()
 //
 ///////////////////////////////////////////////////////////////////////
 
-CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
+CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct, int t) :
    class__class((const class__class &) *nd),
    parentnd(NULL),
    children(NULL),
-   basic_status(bstatus)
+   basic_status(bstatus),
+   tag(t)
 { 
    stringtable.add_string(name->get_string());          // Add class name to string table
 }

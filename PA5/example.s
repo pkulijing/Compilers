@@ -26,7 +26,7 @@ _MemMgr_COLLECTOR:
 _MemMgr_TEST:
 	.word	0
 	.word	-1
-str_const12:
+str_const13:
 	.word	4
 	.word	5
 	.word	String_dispTab
@@ -34,12 +34,21 @@ str_const12:
 	.byte	0	
 	.align	2
 	.word	-1
-str_const11:
+str_const12:
 	.word	4
 	.word	6
 	.word	String_dispTab
 	.word	int_const2
 	.ascii	"Main"
+	.byte	0	
+	.align	2
+	.word	-1
+str_const11:
+	.word	4
+	.word	5
+	.word	String_dispTab
+	.word	int_const0
+	.ascii	"D"
 	.byte	0	
 	.align	2
 	.word	-1
@@ -208,6 +217,7 @@ bool_const1:
 	.word	Bool_dispTab
 	.word	1
 class_nameTab:
+	.word	str_const12
 	.word	str_const11
 	.word	str_const10
 	.word	str_const9
@@ -218,6 +228,8 @@ class_nameTab:
 class_objTab:
 	.word	Main_protObj
 	.word	Main_init
+	.word	D_protObj
+	.word	D_init
 	.word	C_protObj
 	.word	C_init
 	.word	String_protObj
@@ -232,6 +244,11 @@ class_objTab:
 	.word	Object_init
 Main_dispTab:
 	.word	Main.main
+	.word	Object.abort
+	.word	Object.type_name
+	.word	Object.copy
+D_dispTab:
+	.word	C.init
 	.word	Object.abort
 	.word	Object.type_name
 	.word	Object.copy
@@ -269,18 +286,55 @@ Object_dispTab:
 	.word	Object.copy
 	.word	-1
 Main_protObj:
+	.word	7
+	.word	4
+	.word	Main_dispTab
+	.word	0
+	.word	-1
+D_protObj:
+	.word	6
+	.word	7
+	.word	D_dispTab
+	.word	int_const1
+	.word	bool_const0
+	.word	str_const13
+	.word	0
 	.word	-1
 C_protObj:
+	.word	5
+	.word	6
+	.word	C_dispTab
+	.word	int_const1
+	.word	bool_const0
+	.word	str_const13
 	.word	-1
 String_protObj:
+	.word	4
+	.word	5
+	.word	String_dispTab
+	.word	int_const10
 	.word	-1
 Bool_protObj:
+	.word	3
+	.word	4
+	.word	Bool_dispTab
+	.word	0
 	.word	-1
 Int_protObj:
+	.word	2
+	.word	4
+	.word	Int_dispTab
+	.word	0
 	.word	-1
 IO_protObj:
+	.word	1
+	.word	3
+	.word	IO_dispTab
 	.word	-1
 Object_protObj:
+	.word	0
+	.word	3
+	.word	Object_dispTab
 	.globl	heap_start
 heap_start:
 	.word	0

@@ -36,6 +36,7 @@ private:
    void code_class_objTab();
    void code_dispTabs();
    void code_protObjs();
+   void code_object_initializer();
 
 // The following creates an inheritance graph from
 // a list of classes.  The graph is implemented as
@@ -60,17 +61,21 @@ private:
    List<CgenNode> *children;                  // Children of class
    Basicness basic_status;                    // `Basic' if class is basic
                                               // `NotBasic' otherwise
-
+   int tag;
 public:
    CgenNode(Class_ c,
             Basicness bstatus,
-            CgenClassTableP class_table);
+            CgenClassTableP class_table,
+			int t);
 
    void add_child(CgenNodeP child);
    List<CgenNode> *get_children() { return children; }
    void set_parentnd(CgenNodeP p);
    CgenNodeP get_parentnd() { return parentnd; }
    int basic() { return (basic_status == Basic); }
+   void code_attrs(ostream& s);
+   int size_word();
+   int get_tag() { return tag; }
 };
 
 class BoolConst 

@@ -264,17 +264,19 @@ Main_protObj:
 	.word	-1
 C_protObj:
 	.word	5
-	.word	5
+	.word	6
 	.word	C_dispTab
 	.word	int_const1
 	.word	bool_const0
+	.word	str_const10
 	.word	-1
 D_protObj:
 	.word	6
-	.word	6
+	.word	7
 	.word	D_dispTab
 	.word	int_const1
 	.word	bool_const0
+	.word	str_const10
 	.word	0
 	.word	-1
 String_protObj:
