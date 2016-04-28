@@ -37,6 +37,7 @@ private:
    void code_dispTabs();
    void code_protObjs();
    void code_object_initializer();
+   void code_class_methods();
 
 // The following creates an inheritance graph from
 // a list of classes.  The graph is implemented as
@@ -74,6 +75,7 @@ public:
    CgenNodeP get_parentnd() { return parentnd; }
    int basic() { return (basic_status == Basic); }
    void code_attrs(ostream& s);
+   void code_dispTab(ostream& s);
    int size_word();
    int get_tag() { return tag; }
 };

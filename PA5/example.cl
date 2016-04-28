@@ -17,6 +17,7 @@ class D inherits C {
 
 Class Main {
 	c : C;
+	i : Int <- 1 + 2;
 	main():C {
 	  (new C).init(1,true)
 	};

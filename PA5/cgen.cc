@@ -831,20 +831,22 @@ void CgenClassTable::code_dispTabs() {
 		CgenNode* node = l->hd();
 		if(cgen_debug) cout << "coding dispatch table for class " << node->name->get_string() << endl;
 		str << node->get_name()->get_string() << DISPTAB_SUFFIX << LABEL;
-		while(node->get_name() != No_class) {
-			Features fs = node->features;
-			for(int i = fs->first(); fs->more(i); i = fs->next(i)) {
-				Feature f = fs->nth(i);
-				if(f->get_feature_type() == FEATURE_METHOD) {
-					str << WORD << node->get_name()->get_string() << METHOD_SEP
-						<< dynamic_cast<method_class*>(f)->name->get_string() << endl;
-				}
-			}
-			node = node->get_parentnd();
-		}
+		node->code_dispTab(str);
 	}
 }
 
+void CgenNode::code_dispTab(ostream& s) {
+	if(get_name() == No_class)
+		return;
+	get_parentnd()->code_dispTab(s);
+	for(int i = features->first(); features->more(i); i = features->next(i)) {
+		Feature f = features->nth(i);
+		if(f->get_feature_type() == FEATURE_METHOD) {
+			s << WORD << get_name()->get_string() << METHOD_SEP
+					<< dynamic_cast<method_class*>(f)->name->get_string() << endl;
+		}
+	}
+}
 
 
 void CgenNode::code_attrs(ostream& s) {
@@ -911,6 +913,10 @@ void CgenClassTable::code_object_initializer() {
 
 }
 
+void CgenClassTable::code_class_methods() {
+
+}
+
 void CgenClassTable::code()
 {
   if (cgen_debug) cout << "coding global data" << endl;
@@ -946,6 +952,9 @@ void CgenClassTable::code()
 
   if (cgen_debug) cout << "coding object initializer" << endl;
   code_object_initializer();
+
+  if (cgen_debug) cout << "coding class methods" << endl;
+  code_class_methods();
 
 //                 Add your code to emit
 //                   - object initializer
@@ -1013,15 +1022,39 @@ void let_class::code(ostream &s) {
 }
 
 void plus_class::code(ostream &s) {
+	e1->code(s);
+	emit_push(ACC,s);
+	e2->code(s);
+	emit_load(T1,1,SP,s);
+	emit_add(ACC,ACC,T1,s);
+	emit_addiu(SP,SP,4,s);
 }
 
 void sub_class::code(ostream &s) {
+	e1->code(s);
+	emit_push(ACC,s);
+	e2->code(s);
+	emit_load(T1,1,SP,s);
+	emit_sub(ACC,ACC,T1,s);
+	emit_addiu(SP,SP,4,s);
 }
 
 void mul_class::code(ostream &s) {
+	e1->code(s);
+	emit_push(ACC,s);
+	e2->code(s);
+	emit_load(T1,1,SP,s);
+	emit_mul(ACC,ACC,T1,s);
+	emit_addiu(SP,SP,4,s);
 }
 
 void divide_class::code(ostream &s) {
+	e1->code(s);
+	emit_push(ACC,s);
+	e2->code(s);
+	emit_load(T1,1,SP,s);
+	emit_div(ACC,ACC,T1,s);
+	emit_addiu(SP,SP,4,s);
 }
 
 void neg_class::code(ostream &s) {
