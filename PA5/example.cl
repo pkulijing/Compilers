@@ -15,10 +15,20 @@ class D inherits C {
 	d : IO;
 };
 
+class A {
+	f(a : Int, b : IO, c : Int, d : Int) : Int { 102 };
+	g() : Int { 103};
+};
+
+class B {
+	a:Int <- 1;
+	b: String <- "hehe";
+};
+
 Class Main {
 	c : C;
 	i : Int <- 1 + 2;
-	main():C {
-	  (new C).init(1,true)
+	main(): Int{ 
+		2 + 2
 	};
 };

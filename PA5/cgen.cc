@@ -829,7 +829,7 @@ void CgenClassTable::code_class_objTab() {
 void CgenClassTable::code_dispTabs() {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
-		if(cgen_debug) cout << "coding dispatch table for class " << node->name->get_string() << endl;
+		if(cgen_debug) cout << "\tcoding dispatch table for class " << node->name->get_string() << endl;
 		str << node->get_name()->get_string() << DISPTAB_SUFFIX << LABEL;
 		node->code_dispTab(str);
 	}
@@ -881,25 +881,93 @@ void CgenNode::code_attrs(ostream& s) {
 int CgenNode::size_word() {
 	if(basic()) {
 		if(name == IO || name == Object) return 3;
-		else if(name == Int || name == Bool) return 4;
-		else if(name == Str) return 5;
+		else if(name == Int || name == Bool)  {
+			dynamic_cast<attr_class*>(features->nth(features->first()))->offset = 3;
+			return 4;
+		}
+		else if(name == Str) {
+			int i1 = features->first();
+			int i2 = features->next(i1);
+			attr_class* attr1 = dynamic_cast<attr_class*>(features->nth(i1));
+			attr_class* attr2 = dynamic_cast<attr_class*>(features->nth(i2));
+			attr1->offset = 3;
+			attr2->offset = 4;
+			return 5;
+		}
 		else {
 			cerr << "WTF?" << endl;
 			return -1;
 		}
 	}
-	int val = parentnd->size_word();
+	int sz = parentnd->size_word();
 	for(int i = features->first(); features->more(i); i = features->next(i)) {
-		if(features->nth(i)->get_feature_type() == FEATURE_ATTR)
-			++val;
+		Feature f = features->nth(i);
+		if(f->get_feature_type() == FEATURE_ATTR) {
+			attr_class* attr = dynamic_cast<attr_class*>(f);
+			attr->offset = sz++;
+		}
 	}
-	return val;
+	return sz;
+}
+
+void CgenNode::code_initializer(ostream& s) {
+	s << name->get_string() << CLASSINIT_SUFFIX << LABEL;
+	emit_addiu(SP,SP,-12,s);
+	emit_store(FP,3,SP,s);		//store the frame pointer $fp
+	emit_store(SELF,2,SP,s);	//store the self pointer $self
+	emit_store(RA,1,SP,s);		//store the return address $ra
+	emit_addiu(FP,SP,4,s);		//set the new frame pointer $fp. But why this value?
+	emit_move(SELF,ACC,s);		//set $self to the prototype object in ACC.
+	s << JAL;					//initialize parent class
+	emit_init_ref(get_parentnd()->name, s);
+	s << endl;
+	//Initialize all attributes
+	for(int i = features->first(); features->more(i); i = features->next(i)) {
+		Feature f = features->nth(i);
+		if(f->get_feature_type() == FEATURE_ATTR) {
+			attr_class* attr = dynamic_cast<attr_class*>(f);
+			//If init expression does not exist, get_type() == NULL. This is not the same
+			//as my own implementation of semant.
+			if(attr->init->get_type()) {
+				attr->init->code(s);				 //This will put the result of the init expression in ACC
+				emit_store(ACC,attr->offset,SELF,s); //Store the value of the init expression at the correct position
+			}
+		}
+	}
+	emit_move(ACC,SELF,s);	//The initialized object should be saved in ACC
+	emit_load(FP,3,SP,s);	//Retrieve old $fp, $self and $ra.
+	emit_load(SELF,2,SP,s);
+	emit_load(RA,1,SP,s);
+	emit_addiu(SP,SP,12,s);	//Restore $sp
+	emit_return(s);			//return
+}
+
+void CgenNode::code_methods(ostream& s) {
+	for(int i = features->first(); features->more(i); i = features->next(i)) {
+		Feature f = features->nth(i);
+		if(f->get_feature_type() == FEATURE_METHOD) {
+			method_class* method = dynamic_cast<method_class*>(f);
+			s << name << METHOD_SEP << method->name << LABEL;
+			emit_addiu(SP,SP,-12,s);
+			emit_store(FP,3,SP,s);		//store the frame pointer $fp
+			emit_store(SELF,2,SP,s);	//store the self pointer $self
+			emit_store(RA,1,SP,s);		//store the return address $ra
+			emit_addiu(FP,SP,4,s);		//set the new frame pointer $fp. But why this value?
+			emit_move(SELF,ACC,s);		//set $self to the prototype object in ACC.
+			method->expr->code(s);
+			emit_load(FP,3,SP,s);	//Retrieve old $fp, $self and $ra.
+			emit_load(SELF,2,SP,s);
+			emit_load(RA,1,SP,s);
+			emit_addiu(SP,SP,12 + 4 * method->formals->len(),s);	//Restore $sp
+			emit_return(s);			//return
+		}
+	}
 }
 
 void CgenClassTable::code_protObjs() {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
-		if(cgen_debug) cout << "coding prototype object for class " << node->name->get_string() << endl;
+		if(cgen_debug) cout << "\tcoding prototype object for class " << node->name->get_string() << endl;
 		str << WORD << "-1" << endl;
 		str << node->get_name()->get_string() << PROTOBJ_SUFFIX << LABEL;
 		str << WORD << node->get_tag() << endl; //tag
@@ -909,12 +977,22 @@ void CgenClassTable::code_protObjs() {
 	}
 }
 
-void CgenClassTable::code_object_initializer() {
+void CgenClassTable::code_initializers() {
+	for(List<CgenNode>* l = nds; l; l = l->tl()) {
+		CgenNode* node = l->hd();
+		if(cgen_debug) cout << "\tcoding initializer for class " << node->name->get_string() << endl;
+		node->code_initializer(str);
+	}
 
 }
 
 void CgenClassTable::code_class_methods() {
-
+	for(List<CgenNode>* l = nds; l; l = l->tl()) {
+		CgenNode* node = l->hd();
+		if(node->basic()) continue;
+		if(cgen_debug) cout << "\tcoding methods for class " << node->name->get_string() << endl;
+		node->code_methods(str);
+	}
 }
 
 void CgenClassTable::code()
@@ -951,7 +1029,7 @@ void CgenClassTable::code()
   code_global_text();
 
   if (cgen_debug) cout << "coding object initializer" << endl;
-  code_object_initializer();
+  code_initializers();
 
   if (cgen_debug) cout << "coding class methods" << endl;
   code_class_methods();
@@ -1058,9 +1136,16 @@ void divide_class::code(ostream &s) {
 }
 
 void neg_class::code(ostream &s) {
+	e1->code(s);
+	emit_neg(ACC,ACC,s);
 }
 
 void lt_class::code(ostream &s) {
+//	e1->code(s);
+//	emit_push(ACC,s);
+//	e2->code(s);
+//	emit_load(T1,1,SP,s);
+
 }
 
 void eq_class::code(ostream &s) {

@@ -210,11 +210,13 @@ public:
    Symbol name;
    Symbol type_decl;
    Expression init;
+   int offset;
 public:
    attr_class(Symbol a1, Symbol a2, Expression a3) {
       name = a1;
       type_decl = a2;
       init = a3;
+      offset = 0;
    }
    Feature copy_Feature();
    void dump(ostream& stream, int n);
