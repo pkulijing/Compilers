@@ -24,6 +24,7 @@
 
 #include "cgen.h"
 #include "cgen_gc.h"
+#include <cassert>
 
 extern void emit_string_constant(ostream& str, char *s);
 extern int cgen_debug;
@@ -34,6 +35,8 @@ const int MY_INT_TAG = 2;
 const int MY_BOOL_TAG = 3;
 const int MY_STRING_TAG = 4;
 const int FIRST_NONBASIC_CLASS_TAG = 5;
+
+int Expression_class::i_label = 0;
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
 // If e : No_type, then no code is generated for e.
@@ -263,6 +266,7 @@ static void emit_label_def(int l, ostream &s)
   s << ":" << endl;
 }
 
+//branch on equal zero
 static void emit_beqz(char *source, int label, ostream &s)
 {
   s << BEQZ << source << " ";
@@ -270,6 +274,7 @@ static void emit_beqz(char *source, int label, ostream &s)
   s << endl;
 }
 
+//branch on equal
 static void emit_beq(char *src1, char *src2, int label, ostream &s)
 {
   s << BEQ << src1 << " " << src2 << " ";
@@ -835,35 +840,47 @@ void CgenClassTable::code_dispTabs() {
 	}
 }
 
-void CgenNode::code_dispTab(ostream& s) {
+int CgenNode::code_dispTab(ostream& s) {
 	if(get_name() == No_class)
-		return;
-	get_parentnd()->code_dispTab(s);
+		return 0;
+	int curr_offset = get_parentnd()->code_dispTab(s);
 	for(int i = features->first(); features->more(i); i = features->next(i)) {
 		Feature f = features->nth(i);
 		if(f->get_feature_type() == FEATURE_METHOD) {
+			method_class* m = dynamic_cast<method_class*>(f);
 			s << WORD << get_name()->get_string() << METHOD_SEP
-					<< dynamic_cast<method_class*>(f)->name->get_string() << endl;
+					<< m->name->get_string() << endl;
+			m->offset = curr_offset++;
 		}
 	}
+	return curr_offset;
 }
 
 
-void CgenNode::code_attrs(ostream& s) {
+int CgenNode::code_attrs(ostream& s) {
 	if(basic()) {
-		if(name == Object || name == IO) return;
-		else if(name == Int || name == Bool) s << WORD << 0 << endl;
-		else if(name == Str) {
+		if(name == Object || name == IO) return DEFAULT_OBJFIELDS;
+		else if(name == Int || name == Bool)  {
+			s << WORD << 0 << endl;
+			dynamic_cast<attr_class*>(features->nth(features->first()))->offset = DEFAULT_OBJFIELDS;
+			return DEFAULT_OBJFIELDS + 1;
+		}
+		else {
+			assert(name == Str);
 			s << WORD;
 			inttable.lookup_string("0")->code_ref(s);
 			s << endl << WORD << 0 << endl;
+
+			int i1 = features->first();
+			int i2 = features->next(i1);
+			attr_class* attr1 = dynamic_cast<attr_class*>(features->nth(i1));
+			attr_class* attr2 = dynamic_cast<attr_class*>(features->nth(i2));
+			attr1->offset = DEFAULT_OBJFIELDS;
+			attr2->offset = DEFAULT_OBJFIELDS + STRING_SLOTS;
+			return DEFAULT_OBJFIELDS + STRING_SLOTS + 1;
 		}
-		else {
-			cerr << "WTF?" << endl;
-		}
-		return;
 	}
-	parentnd->code_attrs(s);
+	int curr_offset = parentnd->code_attrs(s);
 	for(int i = features->first(); features->more(i); i = features->next(i)) {
 		Feature f = features->nth(i);
 		if(f->get_feature_type() == FEATURE_ATTR) {
@@ -874,38 +891,30 @@ void CgenNode::code_attrs(ostream& s) {
 			else if(a->type_decl == Str) stringtable.lookup_string("")->code_ref(s);
 			else s << 0;
 			s << endl;
+
+			a->offset = curr_offset++;
 		}
 	}
+	return curr_offset;
 }
 
-int CgenNode::size_word() {
+int CgenNode::size_in_word() {
 	if(basic()) {
-		if(name == IO || name == Object) return 3;
-		else if(name == Int || name == Bool)  {
-			dynamic_cast<attr_class*>(features->nth(features->first()))->offset = 3;
-			return 4;
-		}
-		else if(name == Str) {
-			int i1 = features->first();
-			int i2 = features->next(i1);
-			attr_class* attr1 = dynamic_cast<attr_class*>(features->nth(i1));
-			attr_class* attr2 = dynamic_cast<attr_class*>(features->nth(i2));
-			attr1->offset = 3;
-			attr2->offset = 4;
-			return 5;
-		}
+		if(name == IO || name == Object)
+			return DEFAULT_OBJFIELDS;
+		else if(name == Int)
+			return DEFAULT_OBJFIELDS + INT_SLOTS;
+		else if(name == Bool)
+			return DEFAULT_OBJFIELDS + BOOL_SLOTS;
 		else {
-			cerr << "WTF?" << endl;
-			return -1;
+			assert(name == Str);
+			return DEFAULT_OBJFIELDS + STRING_SLOTS + 1;
 		}
 	}
-	int sz = parentnd->size_word();
+	int sz = parentnd->size_in_word();
 	for(int i = features->first(); features->more(i); i = features->next(i)) {
-		Feature f = features->nth(i);
-		if(f->get_feature_type() == FEATURE_ATTR) {
-			attr_class* attr = dynamic_cast<attr_class*>(f);
-			attr->offset = sz++;
-		}
+		if(features->nth(i)->get_feature_type() == FEATURE_ATTR)
+			sz++;
 	}
 	return sz;
 }
@@ -943,13 +952,14 @@ void CgenNode::code_initializer(ostream& s) {
 	emit_addiu(SP,SP,12,s);	//Restore $sp
 	emit_return(s);			//return
 }
-
+//
 void CgenNode::code_methods(ostream& s) {
 	for(int i = features->first(); features->more(i); i = features->next(i)) {
 		Feature f = features->nth(i);
 		if(f->get_feature_type() == FEATURE_METHOD) {
 			method_class* method = dynamic_cast<method_class*>(f);
-			s << name << METHOD_SEP << method->name << LABEL;
+			emit_method_ref(name,method->name,s);
+			s  << LABEL;
 			emit_addiu(SP,SP,-12,s);
 			emit_store(FP,3,SP,s);		//store the frame pointer $fp
 			emit_store(SELF,2,SP,s);	//store the self pointer $self
@@ -973,7 +983,7 @@ void CgenClassTable::code_protObjs() {
 		str << WORD << "-1" << endl;
 		str << node->get_name()->get_string() << PROTOBJ_SUFFIX << LABEL;
 		str << WORD << node->get_tag() << endl; //tag
-		str << WORD << node->size_word() << endl; //size
+		str << WORD << node->size_in_word() << endl; //size
 		str << WORD << node->name->get_string() << DISPTAB_SUFFIX << endl;
 		node->code_attrs(str);
 	}
@@ -1078,6 +1088,7 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct, int t) :
 //*****************************************************************
 
 void assign_class::code(ostream &s) {
+
 }
 
 void static_dispatch_class::code(ostream &s) {
@@ -1087,6 +1098,7 @@ void dispatch_class::code(ostream &s) {
 }
 
 void cond_class::code(ostream &s) {
+	pred->code(s);
 }
 
 void loop_class::code(ostream &s) {
@@ -1143,20 +1155,92 @@ void neg_class::code(ostream &s) {
 }
 
 void lt_class::code(ostream &s) {
-//	e1->code(s);
-//	emit_push(ACC,s);
-//	e2->code(s);
-//	emit_load(T1,1,SP,s);
+	e1->code(s);
+	emit_push(ACC,s);
+	e2->code(s);
+	emit_load(T1,1,SP,s);
+
+	int true_branch = i_label++;
+	int end_branch = i_label++;
+
+	//if e1 < e2 goto true_branch; otherwise continue
+	emit_blt(T1,ACC,true_branch,s);
+
+	emit_load_bool(ACC,falsebool,s);
+	emit_branch(end_branch,s);
+
+	//true_branch
+	emit_label_def(true_branch, s);
+	emit_load_bool(ACC,truebool,s);
+
+	//end_branch branch
+	emit_label_def(end_branch,s);
+	emit_addiu(SP,SP,4,s);
 
 }
 
 void eq_class::code(ostream &s) {
+	e1->code(s);
+	emit_push(ACC,s);
+	e2->code(s);
+	emit_load(T1,1,SP,s);
+
+	int true_branch = i_label++;
+	int end_branch = i_label++;
+
+	//if e1 == e2 goto true_branch; otherwise continue
+	emit_beq(T1,ACC,true_branch,s);
+
+	emit_load_bool(ACC,falsebool,s);
+	emit_branch(end_branch,s);
+
+	//true_branch
+	emit_label_def(true_branch, s);
+	emit_load_bool(ACC,truebool,s);
+
+	//end_branch branch
+	emit_label_def(end_branch,s);
+	emit_addiu(SP,SP,4,s);
 }
 
 void leq_class::code(ostream &s) {
+	e1->code(s);
+	emit_push(ACC,s);
+	e2->code(s);
+	emit_load(T1,1,SP,s);
+
+	int true_branch = i_label++;
+	int end_branch = i_label++;
+
+	//if e1 <= e2 goto true_branch; otherwise continue
+	emit_bleq(T1,ACC,true_branch,s);
+
+	emit_load_bool(ACC,falsebool,s);
+	emit_branch(end_branch,s);
+
+	//true_branch
+	emit_label_def(true_branch, s);
+	emit_load_bool(ACC,truebool,s);
+
+	//end_branch branch
+	emit_label_def(end_branch,s);
+	emit_addiu(SP,SP,4,s);
 }
 
 void comp_class::code(ostream &s) {
+	e1->code(s);
+	int false_branch = i_label++;
+	int end_branch = i_label++;
+	emit_beqz(ACC,false_branch,s);
+
+	emit_load_bool(ACC,falsebool,s);
+	emit_branch(end_branch,s);
+
+	//false_branch
+	emit_label_def(false_branch, s);
+	emit_load_bool(ACC,truebool,s);
+
+	emit_label_def(end_branch,s);
 }
 
 void int_const_class::code(ostream& s)  
@@ -1169,18 +1253,27 @@ void int_const_class::code(ostream& s)
 
 void string_const_class::code(ostream& s)
 {
-  emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
+	emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
 void bool_const_class::code(ostream& s)
 {
-  emit_load_bool(ACC, BoolConst(val), s);
+	emit_load_bool(ACC, BoolConst(val), s);
 }
 
 void new__class::code(ostream &s) {
+	//TODO: SELF_TYPE
+	emit_partial_load_address(ACC,s);
+	emit_protobj_ref(type_name,s);
+	s << endl;
+	emit_jal("Object.copy",s);
+	s << JAL;
+	emit_init_ref(type_name,s);
+	s << endl;
 }
 
 void isvoid_class::code(ostream &s) {
+
 }
 
 void no_expr_class::code(ostream &s) {

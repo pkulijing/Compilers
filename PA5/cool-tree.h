@@ -83,6 +83,7 @@ class Expression_class : public tree_node {
 public:
    tree_node *copy()		 { return copy_Expression(); }
    virtual Expression copy_Expression() = 0;
+   static int i_label;
 
 #ifdef Expression_EXTRAS
    Expression_EXTRAS
@@ -184,12 +185,14 @@ public:
    Formals formals;
    Symbol return_type;
    Expression expr;
+   int offset;
 public:
    method_class(Symbol a1, Formals a2, Symbol a3, Expression a4) {
       name = a1;
       formals = a2;
       return_type = a3;
       expr = a4;
+      offset = 0;
    }
    Feature copy_Feature();
    void dump(ostream& stream, int n);

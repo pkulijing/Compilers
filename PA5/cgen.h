@@ -74,11 +74,11 @@ public:
    void set_parentnd(CgenNodeP p);
    CgenNodeP get_parentnd() { return parentnd; }
    int basic() { return (basic_status == Basic); }
-   void code_attrs(ostream& s);
-   void code_dispTab(ostream& s);
+   int code_attrs(ostream& s);		//return: offset of the next attr
+   int code_dispTab(ostream& s);	//return: offset of the next method
    void code_initializer(ostream& s);
    void code_methods(ostream& s);
-   int size_word();
+   int size_in_word();
    int get_tag() { return tag; }
 };
 
