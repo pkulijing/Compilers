@@ -856,7 +856,7 @@ void CgenNode::code_attrs(ostream& s) {
 		else if(name == Str) {
 			s << WORD;
 			inttable.lookup_string("0")->code_ref(s);
-			s << 0 << endl;
+			s << endl << WORD << 0 << endl;
 		}
 		else {
 			cerr << "WTF?" << endl;
@@ -918,9 +918,11 @@ void CgenNode::code_initializer(ostream& s) {
 	emit_store(RA,1,SP,s);		//store the return address $ra
 	emit_addiu(FP,SP,4,s);		//set the new frame pointer $fp. But why this value?
 	emit_move(SELF,ACC,s);		//set $self to the prototype object in ACC.
-	s << JAL;					//initialize parent class
-	emit_init_ref(get_parentnd()->name, s);
-	s << endl;
+	if(name != Object) {
+		s << JAL;					//initialize parent class
+		emit_init_ref(get_parentnd()->name, s);
+		s << endl;
+	}
 	//Initialize all attributes
 	for(int i = features->first(); features->more(i); i = features->next(i)) {
 		Feature f = features->nth(i);

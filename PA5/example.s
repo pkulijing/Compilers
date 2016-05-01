@@ -380,7 +380,8 @@ String_protObj:
 	.word	4
 	.word	5
 	.word	String_dispTab
-	.word	int_const40
+	.word	int_const4
+	.word	0
 	.word	-1
 Bool_protObj:
 	.word	3
@@ -557,7 +558,6 @@ Object_init:
 	sw	$ra 4($sp)
 	addiu	$fp $sp 4
 	move	$s0 $a0
-	jal	_no_class_init
 	move	$a0 $s0
 	lw	$fp 12($sp)
 	lw	$s0 8($sp)
