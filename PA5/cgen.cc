@@ -615,20 +615,24 @@ void CgenClassTable::code_constants()
 }
 
 
-CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
+CgenClassTable::CgenClassTable(Classes classes, ostream& s) :
+		nds(NULL),
+		str(s),
+		stringclasstag(MY_STRING_TAG),
+		intclasstag(MY_INT_TAG),
+		boolclasstag(MY_BOOL_TAG),
+		environment(new SymbolTable<Symbol,int>())
 {
-   stringclasstag = MY_STRING_TAG;
-   intclasstag =    MY_INT_TAG;
-   boolclasstag =   MY_BOOL_TAG;
+	enterscope();
+	environment->enterscope();
+	if (cgen_debug) cout << "Building CgenClassTable" << endl;
+	install_basic_classes();
+	install_classes(classes);
+	build_inheritance_tree();
 
-   enterscope();
-   if (cgen_debug) cout << "Building CgenClassTable" << endl;
-   install_basic_classes();
-   install_classes(classes);
-   build_inheritance_tree();
-
-   code();
-   exitscope();
+	code();
+	environment->exitscope();
+	exitscope();
 }
 
 void CgenClassTable::install_basic_classes()
@@ -826,16 +830,16 @@ void CgenClassTable::code_class_nameTab() {
 void CgenClassTable::code_class_objTab() {
 	str << CLASSOBJTAB << LABEL;
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
-		str << WORD << l->hd()->name->get_string() << PROTOBJ_SUFFIX << endl;
-		str << WORD << l->hd()->name->get_string() << CLASSINIT_SUFFIX << endl;
+		str << WORD << l->hd()->name << PROTOBJ_SUFFIX << endl;
+		str << WORD << l->hd()->name << CLASSINIT_SUFFIX << endl;
 	}
 }
 
 void CgenClassTable::code_dispTabs() {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
-		if(cgen_debug) cout << "\tcoding dispatch table for class " << node->name->get_string() << endl;
-		str << node->get_name()->get_string() << DISPTAB_SUFFIX << LABEL;
+		if(cgen_debug) cout << "\tcoding dispatch table for class " << node->get_name() << endl;
+		str << node->get_name() << DISPTAB_SUFFIX << LABEL;
 		node->code_dispTab(str);
 	}
 }
@@ -848,8 +852,9 @@ int CgenNode::code_dispTab(ostream& s) {
 		Feature f = features->nth(i);
 		if(f->get_feature_type() == FEATURE_METHOD) {
 			method_class* m = dynamic_cast<method_class*>(f);
-			s << WORD << get_name()->get_string() << METHOD_SEP
-					<< m->name->get_string() << endl;
+			s << WORD;
+			emit_method_ref(get_name(), m->name,s);
+			s << endl;
 			m->offset = curr_offset++;
 		}
 	}
@@ -862,16 +867,16 @@ int CgenNode::code_attrs(ostream& s) {
 		if(name == Object || name == IO) return DEFAULT_OBJFIELDS;
 		else if(name == Int || name == Bool)  {
 			s << WORD << 0 << endl;
-			dynamic_cast<attr_class*>(features->nth(features->first()))->offset = DEFAULT_OBJFIELDS;
+			dynamic_cast<attr_class*>(features->nth(features->first()))->offset = DEFAULT_OBJFIELDS; //only one attr
 			return DEFAULT_OBJFIELDS + 1;
 		}
 		else {
 			assert(name == Str);
 			s << WORD;
-			inttable.lookup_string("0")->code_ref(s);
-			s << endl << WORD << 0 << endl;
+			inttable.lookup_string("0")->code_ref(s);	//length = 0
+			s << endl << WORD << 0 << endl;				//no character
 
-			int i1 = features->first();
+			int i1 = features->first();					//two attrs
 			int i2 = features->next(i1);
 			attr_class* attr1 = dynamic_cast<attr_class*>(features->nth(i1));
 			attr_class* attr2 = dynamic_cast<attr_class*>(features->nth(i2));
@@ -880,13 +885,13 @@ int CgenNode::code_attrs(ostream& s) {
 			return DEFAULT_OBJFIELDS + STRING_SLOTS + 1;
 		}
 	}
-	int curr_offset = parentnd->code_attrs(s);
+	int curr_offset = parentnd->code_attrs(s);		//code attrs of parent recursively.
 	for(int i = features->first(); features->more(i); i = features->next(i)) {
 		Feature f = features->nth(i);
 		if(f->get_feature_type() == FEATURE_ATTR) {
 			attr_class* a = dynamic_cast<attr_class*>(f);
 			s << WORD;
-			if(a->type_decl == Bool) falsebool.code_ref(s);
+			if(a->type_decl == Bool) falsebool.code_ref(s);	//Bool, Int, Str have default values.
 			else if(a->type_decl == Int) inttable.lookup_string("0")->code_ref(s);
 			else if(a->type_decl == Str) stringtable.lookup_string("")->code_ref(s);
 			else s << 0;
@@ -920,15 +925,15 @@ int CgenNode::size_in_word() {
 }
 
 void CgenNode::code_initializer(ostream& s) {
-	s << name->get_string() << CLASSINIT_SUFFIX << LABEL;
-	emit_addiu(SP,SP,-12,s);
-	emit_store(FP,3,SP,s);		//store the frame pointer $fp
-	emit_store(SELF,2,SP,s);	//store the self pointer $self
-	emit_store(RA,1,SP,s);		//store the return address $ra
-	emit_addiu(FP,SP,4,s);		//set the new frame pointer $fp. But why this value?
+	s << get_name() << CLASSINIT_SUFFIX << LABEL;
+	emit_push(FP,s); 			//store the frame pointer $fp
+	emit_push(SELF,s);			//store the self pointer $self
+	emit_push(RA,s);			//store the return address $ra
+
+	emit_addiu(FP,SP,4,s);		//set the new frame pointer $fp.
 	emit_move(SELF,ACC,s);		//set $self to the prototype object in ACC.
 	if(name != Object) {
-		s << JAL;					//initialize parent class
+		s << JAL;				//initialize parent class. No need for Object class.
 		emit_init_ref(get_parentnd()->name, s);
 		s << endl;
 	}
@@ -979,12 +984,12 @@ void CgenNode::code_methods(ostream& s) {
 void CgenClassTable::code_protObjs() {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
-		if(cgen_debug) cout << "\tcoding prototype object for class " << node->name->get_string() << endl;
+		if(cgen_debug) cout << "\tcoding prototype object for class " << node->get_name() << endl;
 		str << WORD << "-1" << endl;
-		str << node->get_name()->get_string() << PROTOBJ_SUFFIX << LABEL;
+		str << node->get_name() << PROTOBJ_SUFFIX << LABEL;
 		str << WORD << node->get_tag() << endl; //tag
 		str << WORD << node->size_in_word() << endl; //size
-		str << WORD << node->name->get_string() << DISPTAB_SUFFIX << endl;
+		str << WORD << node->get_name() << DISPTAB_SUFFIX << endl;
 		node->code_attrs(str);
 	}
 }
@@ -992,7 +997,7 @@ void CgenClassTable::code_protObjs() {
 void CgenClassTable::code_initializers() {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
-		if(cgen_debug) cout << "\tcoding initializer for class " << node->name->get_string() << endl;
+		if(cgen_debug) cout << "\tcoding initializer for class " << node->get_name() << endl;
 		node->code_initializer(str);
 	}
 
@@ -1002,7 +1007,7 @@ void CgenClassTable::code_class_methods() {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
 		if(node->basic()) continue;
-		if(cgen_debug) cout << "\tcoding methods for class " << node->name->get_string() << endl;
+		if(cgen_debug) cout << "\tcoding methods for class " << node->get_name() << endl;
 		node->code_methods(str);
 	}
 }

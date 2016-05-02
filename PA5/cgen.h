@@ -21,6 +21,7 @@ private:
    int stringclasstag;
    int intclasstag;
    int boolclasstag;
+   SymbolTable<Symbol, int>* environment;
 
 
 // The following methods emit code for
