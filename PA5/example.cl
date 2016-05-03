@@ -1,4 +1,5 @@
 Class A {
+	outa : Int;
 	outa(a : Int, b : Int, c : Int) : Int { b };
 };
 Class Main {

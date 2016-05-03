@@ -1058,6 +1058,14 @@ void CgenClassTable::code()
 
 }
 
+CgenNode* CgenClassTable::get_node(Symbol name) {
+	for(List<CgenNode>* l = nds; l; l = l->tl()) {
+		CgenNode* node = l->hd();
+		if(node->get_name() == name)
+			return node;
+	}
+	return NULL;
+}
 
 CgenNodeP CgenClassTable::root()
 {
@@ -1109,7 +1117,7 @@ void static_dispatch_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env,
 
 void dispatch_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
 	emit_push(FP,s); //store old frame pointer
-	for(int i = actual->first(); actual->more(i); i = actual.more(i) {
+	for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
 		Expression ei = actual->nth(i);
 		ei->code(s, attr_env, frame_env);
 		emit_push(ACC, s);
@@ -1117,8 +1125,16 @@ void dispatch_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, Symbol
 	expr->code(s, attr_env, frame_env);
 	int branch_label = i_label++;
 	emit_bne(ACC, ZERO, branch_label, s);
-
+	emit_partial_load_address(ACC,s);
+	//name of current file
+	//line number in t1
 	emit_jal(DISPATCH_ABORT, s);
+	emit_label_def(branch_label,s);
+	emit_load(T1,DISPTABLE_OFFSET,ACC,s);	//
+	emit_load(T1,,T1,s);
+	emit_jalr(T1,s);
+
+
 }
 
 void cond_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {

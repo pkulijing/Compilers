@@ -54,6 +54,7 @@ public:
    CgenClassTable(Classes, ostream& str);
    void code();
    CgenNodeP root();
+   CgenNode* get_node(Symbol name);
 };
 
 

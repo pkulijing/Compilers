@@ -246,8 +246,9 @@ Main_protObj:
 	.word	-1
 A_protObj:
 	.word	5
-	.word	3
+	.word	4
 	.word	A_dispTab
+	.word	int_const3
 	.word	-1
 String_protObj:
 	.word	4
