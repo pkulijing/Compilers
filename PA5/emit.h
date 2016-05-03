@@ -105,4 +105,7 @@
 #define BLT      "\tblt\t"
 #define BGT      "\tbgt\t"
 
+////////////////////////////////////////////////
+#define DISPATCH_ABORT "\t_dispatch_abort\t"
+
 

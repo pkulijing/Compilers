@@ -21,7 +21,7 @@ private:
    int stringclasstag;
    int intclasstag;
    int boolclasstag;
-   SymbolTable<Symbol, int>* environment;
+   SymbolTable<Symbol, int>* environment; //sometimes it's so + offset, sometimes it's fp + offset. How do I solve this?
 
 
 // The following methods emit code for
