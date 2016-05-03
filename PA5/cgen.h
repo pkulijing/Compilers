@@ -77,8 +77,8 @@ public:
    int basic() { return (basic_status == Basic); }
    int code_attrs(ostream& s);		//return: offset of the next attr
    int code_dispTab(ostream& s);	//return: offset of the next method
-   void code_initializer(ostream& s);
-   void code_methods(ostream& s);
+   void code_initializer(ostream& s, SymbolTable<Symbol,int>* environment);
+   void code_methods(ostream& s, SymbolTable<Symbol,int>* environment);
    int size_in_word();
    int get_tag() { return tag; }
 };

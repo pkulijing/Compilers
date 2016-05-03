@@ -924,7 +924,7 @@ int CgenNode::size_in_word() {
 	return sz;
 }
 
-void CgenNode::code_initializer(ostream& s) {
+void CgenNode::code_initializer(ostream& s, SymbolTable<Symbol,int>* environment) {
 	s << get_name() << CLASSINIT_SUFFIX << LABEL;
 	emit_push(FP,s); 			//store the frame pointer $fp
 	emit_push(SELF,s);			//store the self pointer $self
@@ -945,7 +945,7 @@ void CgenNode::code_initializer(ostream& s) {
 			//If init expression does not exist, get_type() == NULL. This is not the same
 			//as my own implementation of semant.
 			if(attr->init->get_type()) {
-				attr->init->code(s);				 //This will put the result of the init expression in ACC
+				attr->init->code(s, environment);				 //This will put the result of the init expression in ACC
 				emit_store(ACC,attr->offset,SELF,s); //Store the value of the init expression at the correct position
 			}
 		}
@@ -971,7 +971,7 @@ void CgenNode::code_methods(ostream& s) {
 			emit_store(RA,1,SP,s);		//store the return address $ra
 			emit_addiu(FP,SP,4,s);		//set the new frame pointer $fp. But why this value?
 			emit_move(SELF,ACC,s);		//set $self to the prototype object in ACC.
-			method->expr->code(s);
+			method->expr->code(s, environment);
 			emit_load(FP,3,SP,s);	//Retrieve old $fp, $self and $ra.
 			emit_load(SELF,2,SP,s);
 			emit_load(RA,1,SP,s);
@@ -998,7 +998,7 @@ void CgenClassTable::code_initializers() {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
 		if(cgen_debug) cout << "\tcoding initializer for class " << node->get_name() << endl;
-		node->code_initializer(str);
+		node->code_initializer(str, environment);
 	}
 
 }
@@ -1008,7 +1008,7 @@ void CgenClassTable::code_class_methods() {
 		CgenNode* node = l->hd();
 		if(node->basic()) continue;
 		if(cgen_debug) cout << "\tcoding methods for class " << node->get_name() << endl;
-		node->code_methods(str);
+		node->code_methods(str, environment);
 	}
 }
 
@@ -1092,77 +1092,78 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct, int t) :
 //
 //*****************************************************************
 
-void assign_class::code(ostream &s) {
+void assign_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+
 
 }
 
-void static_dispatch_class::code(ostream &s) {
+void static_dispatch_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
 }
 
-void dispatch_class::code(ostream &s) {
+void dispatch_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
 }
 
-void cond_class::code(ostream &s) {
-	pred->code(s);
+void cond_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+	pred->code(s, environment);
 }
 
-void loop_class::code(ostream &s) {
+void loop_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
 }
 
-void typcase_class::code(ostream &s) {
+void typcase_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
 }
 
-void block_class::code(ostream &s) {
+void block_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
 }
 
-void let_class::code(ostream &s) {
+void let_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
 }
 
-void plus_class::code(ostream &s) {
-	e1->code(s);
+void plus_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+	e1->code(s, environment);
 	emit_push(ACC,s);
-	e2->code(s);
+	e2->code(s, environment);
 	emit_load(T1,1,SP,s);
 	emit_add(ACC,ACC,T1,s);
 	emit_addiu(SP,SP,4,s);
 }
 
-void sub_class::code(ostream &s) {
-	e1->code(s);
+void sub_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+	e1->code(s, environment);
 	emit_push(ACC,s);
-	e2->code(s);
+	e2->code(s, environment);
 	emit_load(T1,1,SP,s);
 	emit_sub(ACC,ACC,T1,s);
 	emit_addiu(SP,SP,4,s);
 }
 
-void mul_class::code(ostream &s) {
-	e1->code(s);
+void mul_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+	e1->code(s, environment);
 	emit_push(ACC,s);
-	e2->code(s);
+	e2->code(s, environment);
 	emit_load(T1,1,SP,s);
 	emit_mul(ACC,ACC,T1,s);
 	emit_addiu(SP,SP,4,s);
 }
 
-void divide_class::code(ostream &s) {
-	e1->code(s);
+void divide_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+	e1->code(s, environment);
 	emit_push(ACC,s);
-	e2->code(s);
+	e2->code(s, environment);
 	emit_load(T1,1,SP,s);
 	emit_div(ACC,ACC,T1,s);
 	emit_addiu(SP,SP,4,s);
 }
 
-void neg_class::code(ostream &s) {
-	e1->code(s);
+void neg_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+	e1->code(s, environment);
 	emit_neg(ACC,ACC,s);
 }
 
-void lt_class::code(ostream &s) {
-	e1->code(s);
+void lt_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+	e1->code(s, environment);
 	emit_push(ACC,s);
-	e2->code(s);
+	e2->code(s, environment);
 	emit_load(T1,1,SP,s);
 
 	int true_branch = i_label++;
@@ -1184,10 +1185,10 @@ void lt_class::code(ostream &s) {
 
 }
 
-void eq_class::code(ostream &s) {
-	e1->code(s);
+void eq_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+	e1->code(s, environment);
 	emit_push(ACC,s);
-	e2->code(s);
+	e2->code(s, environment);
 	emit_load(T1,1,SP,s);
 
 	int true_branch = i_label++;
@@ -1208,10 +1209,10 @@ void eq_class::code(ostream &s) {
 	emit_addiu(SP,SP,4,s);
 }
 
-void leq_class::code(ostream &s) {
-	e1->code(s);
+void leq_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+	e1->code(s, environment);
 	emit_push(ACC,s);
-	e2->code(s);
+	e2->code(s, environment);
 	emit_load(T1,1,SP,s);
 
 	int true_branch = i_label++;
@@ -1232,8 +1233,8 @@ void leq_class::code(ostream &s) {
 	emit_addiu(SP,SP,4,s);
 }
 
-void comp_class::code(ostream &s) {
-	e1->code(s);
+void comp_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
+	e1->code(s, environment);
 	int false_branch = i_label++;
 	int end_branch = i_label++;
 	emit_beqz(ACC,false_branch,s);
@@ -1248,7 +1249,7 @@ void comp_class::code(ostream &s) {
 	emit_label_def(end_branch,s);
 }
 
-void int_const_class::code(ostream& s)  
+void int_const_class::code(ostream &s, SymbolTable<Symbol, int>* environment)
 {
   //
   // Need to be sure we have an IntEntry *, not an arbitrary Symbol
@@ -1256,17 +1257,17 @@ void int_const_class::code(ostream& s)
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
-void string_const_class::code(ostream& s)
+void string_const_class::code(ostream &s, SymbolTable<Symbol, int>* environment)
 {
 	emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
-void bool_const_class::code(ostream& s)
+void bool_const_class::code(ostream &s, SymbolTable<Symbol, int>* environment)
 {
 	emit_load_bool(ACC, BoolConst(val), s);
 }
 
-void new__class::code(ostream &s) {
+void new__class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
 	//TODO: SELF_TYPE
 	emit_partial_load_address(ACC,s);
 	emit_protobj_ref(type_name,s);
@@ -1277,14 +1278,14 @@ void new__class::code(ostream &s) {
 	s << endl;
 }
 
-void isvoid_class::code(ostream &s) {
+void isvoid_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
 
 }
 
-void no_expr_class::code(ostream &s) {
+void no_expr_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
 }
 
-void object_class::code(ostream &s) {
+void object_class::code(ostream &s, SymbolTable<Symbol, int>* environment) {
 }
 
 
