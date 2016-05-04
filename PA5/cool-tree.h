@@ -185,14 +185,12 @@ public:
    Formals formals;
    Symbol return_type;
    Expression expr;
-   int offset;
 public:
    method_class(Symbol a1, Formals a2, Symbol a3, Expression a4) {
       name = a1;
       formals = a2;
       return_type = a3;
       expr = a4;
-      offset = 0;
    }
    Feature copy_Feature();
    void dump(ostream& stream, int n);
@@ -213,13 +211,11 @@ public:
    Symbol name;
    Symbol type_decl;
    Expression init;
-   int offset;
 public:
    attr_class(Symbol a1, Symbol a2, Expression a3) {
       name = a1;
       type_decl = a2;
       init = a3;
-      offset = 0;
    }
    Feature copy_Feature();
    void dump(ostream& stream, int n);

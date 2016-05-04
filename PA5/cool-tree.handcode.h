@@ -21,6 +21,8 @@ void dump_Symbol(ostream& stream, int padding, Symbol b);
 void assert_Symbol(Symbol b);
 Symbol copy_Symbol(Symbol b);
 
+class CgenNode;
+
 class Program_class;
 typedef Program_class *Program;
 class Class__class;
@@ -97,13 +99,13 @@ void dump_with_types(ostream& ,int);
 Symbol type;                                 \
 Symbol get_type() { return type; }           \
 Expression set_type(Symbol s) { type = s; return this; } \
-virtual void code(ostream&, SymbolTable<Symbol, int>*, SymbolTable<Symbol, int>*) = 0; \
+virtual void code(ostream& s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) = 0; \
 virtual void dump_with_types(ostream&,int) = 0;  \
 void dump_type(ostream&, int);               \
 Expression_class() { type = (Symbol) NULL; }
 
 #define Expression_SHARED_EXTRAS           \
-void code(ostream&, SymbolTable<Symbol, int>*, SymbolTable<Symbol, int>*); 			   \
+void code(ostream& s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env); 			   \
 void dump_with_types(ostream&,int); 
 
 
