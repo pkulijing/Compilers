@@ -1198,11 +1198,40 @@ void dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol
 }
 
 void cond_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
-	//pred->code(s, current_node, frame_env);
+	pred->code(s, current_node, frame_env);
+	emit_load_bool(T1,truebool,s);
+	int true_branch = i_label++;
+	int end_branch = i_label++;
 
+	emit_beq(ACC,T1,true_branch, s);
+	else_exp->code(s, current_node, frame_env);
+	emit_branch(end_branch, s);
+
+	emit_label_def(true_branch, s);
+	then_exp->code(s, current_node, frame_env);
+
+	emit_label_def(end_branch, s);
 }
 
 void loop_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	int init_branch = i_label++;
+	emit_label_def(init_branch,s);
+
+	pred->code(s, current_node, frame_env);
+
+	emit_load_bool(T1,truebool,s);
+	int true_branch = i_label++;
+	int end_branch = i_label++;
+
+	emit_beq(ACC,T1,true_branch, s);
+	emit_branch(end_branch, s);
+
+	emit_label_def(true_branch,s);
+	body->code(s, current_node, frame_env);
+	emit_branch(init_branch, s);
+
+	emit_label_def(end_branch, s);
+	emit_move(ACC,ZERO,s);
 }
 
 void typcase_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
@@ -1221,8 +1250,18 @@ void plus_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
 	e2->code(s, current_node, frame_env);
+	emit_jal("Object.copy",s);
 	emit_load(T1,1,SP,s);
-	emit_add(ACC,ACC,T1,s);
+
+	//load the int values
+	emit_load(T2,3,T1, s);
+	emit_load(T3,3,ACC,s);
+
+	//calculation on int values
+	emit_add(T1,T2,T3,s);
+
+	//store the int value in the object
+	emit_store(T1,3,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1230,8 +1269,18 @@ void sub_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
 	e2->code(s, current_node, frame_env);
+	emit_jal("Object.copy",s);
 	emit_load(T1,1,SP,s);
-	emit_sub(ACC,ACC,T1,s);
+
+	//load the int values
+	emit_load(T2,3,T1, s);
+	emit_load(T3,3,ACC,s);
+
+	//calculation on int values
+	emit_sub(T1,T2,T3,s);
+
+	//store the int value in the object
+	emit_store(T1,3,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1239,8 +1288,18 @@ void mul_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
 	e2->code(s, current_node, frame_env);
+	emit_jal("Object.copy",s);
 	emit_load(T1,1,SP,s);
-	emit_mul(ACC,ACC,T1,s);
+
+	//load the int values
+	emit_load(T2,3,T1, s);
+	emit_load(T3,3,ACC,s);
+
+	//calculation on int values
+	emit_mul(T1,T2,T3,s);
+
+	//store the int value in the object
+	emit_store(T1,3,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1248,14 +1307,28 @@ void divide_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, 
 	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
 	e2->code(s, current_node, frame_env);
+	emit_jal("Object.copy",s);
 	emit_load(T1,1,SP,s);
-	emit_div(ACC,ACC,T1,s);
+
+	//load the int values
+	emit_load(T2,3,T1,s);
+	emit_load(T3,3,ACC,s);
+
+	//calculation on int values
+	emit_div(T1,T2,T3,s);
+
+	//store the int value in the object
+	emit_store(T1,3,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
 void neg_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 	e1->code(s, current_node, frame_env);
-	emit_neg(ACC,ACC,s);
+	//load the int value
+	emit_load(T1,3,ACC,s);
+	emit_neg(T1,T1,s);
+	//store the int value
+	emit_store(T1,3,ACC,s);
 }
 
 void lt_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
@@ -1267,8 +1340,12 @@ void lt_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>
 	int true_branch = i_label++;
 	int end_branch = i_label++;
 
+	//load the int values
+	emit_load(T2,3,T1,s);
+	emit_load(T3,3,ACC,s);
+
 	//if e1 < e2 goto true_branch; otherwise continue
-	emit_blt(T1,ACC,true_branch,s);
+	emit_blt(T2,T3,true_branch,s);
 
 	emit_load_bool(ACC,falsebool,s);
 	emit_branch(end_branch,s);
@@ -1292,8 +1369,12 @@ void eq_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>
 	int true_branch = i_label++;
 	int end_branch = i_label++;
 
+	//load the int values
+	emit_load(T2,3,T1,s);
+	emit_load(T3,3,ACC,s);
+
 	//if e1 == e2 goto true_branch; otherwise continue
-	emit_beq(T1,ACC,true_branch,s);
+	emit_beq(T2,T3,true_branch,s);
 
 	emit_load_bool(ACC,falsebool,s);
 	emit_branch(end_branch,s);
@@ -1316,8 +1397,12 @@ void leq_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	int true_branch = i_label++;
 	int end_branch = i_label++;
 
+	//load the int values
+	emit_load(T2,3,T1,s);
+	emit_load(T3,3,ACC,s);
+
 	//if e1 <= e2 goto true_branch; otherwise continue
-	emit_bleq(T1,ACC,true_branch,s);
+	emit_bleq(T2,T3,true_branch,s);
 
 	emit_load_bool(ACC,falsebool,s);
 	emit_branch(end_branch,s);
@@ -1378,7 +1463,18 @@ void new__class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 }
 
 void isvoid_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	e1->code(s, current_node, frame_env);
+	int true_branch = i_label++;
+	int end_branch = i_label++;
+	emit_beq(ACC,ZERO,true_branch,s);
 
+	emit_load_bool(ACC, falsebool, s);
+	emit_branch(end_branch, s);
+
+	emit_label_def(true_branch, s);
+	emit_load_bool(ACC, truebool, s);
+
+	emit_label_def(end_branch, s);
 }
 
 void no_expr_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
