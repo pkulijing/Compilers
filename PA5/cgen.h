@@ -52,12 +52,15 @@ private:
    void code_protObjs();
    void code_initializers();
    void code_class_methods();
+
 public:
    CgenClassTable(Classes, ostream& str);
    void code();
    CgenNodeP root();
 ////////////////////////////////////////////////////////////////////////
    CgenNode* get_node_by_tag(int tag);
+   SymbolTable<Symbol, int>* get_frame_env() { return frame_env; }
+
 };
 
 
@@ -86,6 +89,9 @@ public:
 
    ////////////////////////////////////////////////////////////////////////
    int get_tag() { return tag; }
+   //Maybe it's better to provide the probe result directly.
+   SymbolTable<Symbol, int>* get_attr_offset() { return attr_offset; }
+   SymbolTable<Symbol, int>* get_method_offset() { return method_offset; }
 
    //current_node is needed in the two methods because they will be called recursively, while we want to modify
    //attr_offset and method_offset in the recursive calls.

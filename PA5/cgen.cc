@@ -949,7 +949,7 @@ void CgenNode::code_initializer(ostream& s) {
 			//as my own implementation of semant.
 			if(attr->init->get_type()) {
 				//This will put the result of the init expression in ACC
-				attr->init->code(s, this, class_table->frame_env);
+				attr->init->code(s, this, class_table->get_frame_env());
 
 				//Store the value of the init expression at the correct position
 				emit_store(ACC,*attr_offset->probe(attr->name),SELF,s);
@@ -971,13 +971,26 @@ void CgenNode::code_methods(ostream& s) {
 			method_class* method = dynamic_cast<method_class*>(f);
 			emit_method_ref(name,method->name,s);
 			s  << LABEL;
+
 			emit_push(FP,s); 			//store the frame pointer $fp
 			emit_push(SELF,s);			//store the self pointer $self
 			emit_push(RA,s);			//store the return address $ra
-			//emit_addiu(FP,SP,4,s);		//set the new frame pointer $fp. But why this value?
+
+			//set up $fp
 			emit_move(FP,SP,s);
-			emit_move(SELF,ACC,s);		//set $self to the prototype object in ACC.
-			method->expr->code(s, this, class_table->frame_env);
+			//why do i need this?
+			emit_move(SELF,ACC,s);
+
+			//Put all formals in the frame_env
+			class_table->get_frame_env()->enterscope();
+			int offset = method->formals->len();
+			for(int i = method->formals->first(); method->formals->more(i); i = method->formals->next(i)) {
+				formal_class* formal = dynamic_cast<formal_class*>(method->formals->nth(i));
+				class_table->get_frame_env()->addid(formal->name, new int(offset--));
+			}
+			method->expr->code(s, this, class_table->get_frame_env());
+			class_table->get_frame_env()->exitscope();
+
 			emit_load(FP,3,SP,s);	//Retrieve old $fp, $self and $ra.
 			emit_load(SELF,2,SP,s);
 			emit_load(RA,1,SP,s);
@@ -1065,10 +1078,10 @@ void CgenClassTable::code()
 
 }
 
-CgenNode* CgenClassTable::get_node(Symbol name) {
+CgenNode* CgenClassTable::get_node_by_tag(int tag) {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
-		if(node->get_name() == name)
+		if(node->get_tag() == tag)
 			return node;
 	}
 	return NULL;
@@ -1112,104 +1125,110 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct, int t) :
 //
 //*****************************************************************
 
-void assign_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	expr->code(s, attr_env, frame_env);
+void assign_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	expr->code(s, current_node, frame_env);
 	int* frame_offset = frame_env->lookup(name);
 	if(frame_offset != NULL) {
 		emit_store(ACC, *frame_offset, FP, s);
 	} else {
-		int* attr_offset = attr_env->lookup(name);
+		int* attr_offset = current_node->get_attr_offset()->lookup(name);
 		assert(attr_offset != NULL);
 		emit_store(ACC, *attr_offset, SELF, s);
 	}
 }
 
-void static_dispatch_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
+void static_dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 }
 
-void dispatch_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	emit_push(FP,s); //store old frame pointer
+void dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	emit_push(FP,s); 			//store the frame pointer $fp
+	emit_push(SELF,s);			//store the self pointer $self
+	emit_push(RA,s);			//store the return address $ra
 	for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
 		Expression ei = actual->nth(i);
-		ei->code(s, attr_env, frame_env);
+		ei->code(s, current_node, frame_env);
 		emit_push(ACC, s);
 	}
-	expr->code(s, attr_env, frame_env);
+	expr->code(s, current_node, frame_env);
 	int branch_label = i_label++;
 	emit_bne(ACC, ZERO, branch_label, s);
-	emit_partial_load_address(ACC,s);
-	//name of current file
-	//line number in t1
+
+	//handle dispatch on void
+	//name of current file in $a0
+	emit_load_string(ACC, stringtable.lookup_string(current_node->filename->get_string()), s);
+	//current line number in $t1
+	emit_load_imm(T1,curr_lineno,s);
 	emit_jal(DISPATCH_ABORT, s);
+
+	//execute dispatch
 	emit_label_def(branch_label,s);
-	emit_load(T1,DISPTABLE_OFFSET,ACC,s);	//
-	emit_load(T1,,T1,s);
+	emit_load(T1,DISPTABLE_OFFSET,ACC,s);
+	int* method_offset = current_node->get_method_offset()->lookup(name);
+	assert(method_offset != NULL);
+	emit_load(T1,*method_offset,T1,s);
 	emit_jalr(T1,s);
-
-
 }
 
-void cond_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	pred->code(s, environment);
+void cond_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 }
 
-void loop_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
+void loop_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 }
 
-void typcase_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
+void typcase_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 }
 
-void block_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
+void block_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 }
 
-void let_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
+void let_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 }
 
-void plus_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	e1->code(s, environment);
+void plus_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
-	e2->code(s, environment);
+	e2->code(s, current_node, frame_env);
 	emit_load(T1,1,SP,s);
 	emit_add(ACC,ACC,T1,s);
 	emit_addiu(SP,SP,4,s);
 }
 
-void sub_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	e1->code(s, environment);
+void sub_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
-	e2->code(s, environment);
+	e2->code(s, current_node, frame_env);
 	emit_load(T1,1,SP,s);
 	emit_sub(ACC,ACC,T1,s);
 	emit_addiu(SP,SP,4,s);
 }
 
-void mul_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	e1->code(s, environment);
+void mul_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
-	e2->code(s, environment);
+	e2->code(s, current_node, frame_env);
 	emit_load(T1,1,SP,s);
 	emit_mul(ACC,ACC,T1,s);
 	emit_addiu(SP,SP,4,s);
 }
 
-void divide_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	e1->code(s, environment);
+void divide_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
-	e2->code(s, environment);
+	e2->code(s, current_node, frame_env);
 	emit_load(T1,1,SP,s);
 	emit_div(ACC,ACC,T1,s);
 	emit_addiu(SP,SP,4,s);
 }
 
-void neg_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	e1->code(s, environment);
+void neg_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	e1->code(s, current_node, frame_env);
 	emit_neg(ACC,ACC,s);
 }
 
-void lt_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	e1->code(s, environment);
+void lt_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
-	e2->code(s, environment);
+	e2->code(s, current_node, frame_env);
 	emit_load(T1,1,SP,s);
 
 	int true_branch = i_label++;
@@ -1231,10 +1250,10 @@ void lt_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<
 
 }
 
-void eq_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	e1->code(s, environment);
+void eq_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
-	e2->code(s, environment);
+	e2->code(s, current_node, frame_env);
 	emit_load(T1,1,SP,s);
 
 	int true_branch = i_label++;
@@ -1255,10 +1274,10 @@ void eq_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<
 	emit_addiu(SP,SP,4,s);
 }
 
-void leq_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	e1->code(s, environment);
+void leq_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
-	e2->code(s, environment);
+	e2->code(s, current_node, frame_env);
 	emit_load(T1,1,SP,s);
 
 	int true_branch = i_label++;
@@ -1279,8 +1298,8 @@ void leq_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable
 	emit_addiu(SP,SP,4,s);
 }
 
-void comp_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
-	e1->code(s, environment);
+void comp_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	e1->code(s, current_node, frame_env);
 	int false_branch = i_label++;
 	int end_branch = i_label++;
 	emit_beqz(ACC,false_branch,s);
@@ -1295,7 +1314,7 @@ void comp_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTabl
 	emit_label_def(end_branch,s);
 }
 
-void int_const_class::code(ostream &s, SymbolTable<Symbol, int>* environment)
+void int_const_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env)
 {
   //
   // Need to be sure we have an IntEntry *, not an arbitrary Symbol
@@ -1303,17 +1322,17 @@ void int_const_class::code(ostream &s, SymbolTable<Symbol, int>* environment)
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
-void string_const_class::code(ostream &s, SymbolTable<Symbol, int>* environment)
+void string_const_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env)
 {
 	emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
-void bool_const_class::code(ostream &s, SymbolTable<Symbol, int>* environment)
+void bool_const_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env)
 {
 	emit_load_bool(ACC, BoolConst(val), s);
 }
 
-void new__class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
+void new__class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 	//TODO: SELF_TYPE
 	emit_partial_load_address(ACC,s);
 	emit_protobj_ref(type_name,s);
@@ -1324,19 +1343,19 @@ void new__class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTabl
 	s << endl;
 }
 
-void isvoid_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
+void isvoid_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 
 }
 
-void no_expr_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
+void no_expr_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 }
 
-void object_class::code(ostream &s, SymbolTable<Symbol, int>* attr_env, SymbolTable<Symbol, int>* frame_env) {
+void object_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 	int* frame_offset = frame_env->lookup(name);
 	if(frame_offset != NULL) {
 		emit_load(ACC, *frame_offset, FP, s);
 	} else {
-		int* attr_offset = attr_env->lookup(name);
+		int* attr_offset = current_node->get_attr_offset()->lookup(name);
 		assert(attr_offset != NULL);
 		emit_load(ACC, *attr_offset, SELF, s);
 	}
