@@ -838,25 +838,37 @@ void CgenClassTable::code_dispTabs() {
 		CgenNode* node = l->hd();
 		if(cgen_debug) cout << "\tcoding dispatch table for class " << node->get_name() << endl;
 		str << node->get_name() << DISPTAB_SUFFIX << LABEL;
-		node->code_dispTab(str, node);
+		node->code_dispTab(str);
 	}
 }
 
-int CgenNode::code_dispTab(ostream& s, CgenNode* current_node) {
+//I don't the ugly implementation but I failed to find a neat approach to do this.
+std::pair<std::vector<Symbol>, std::map<Symbol,Symbol> > CgenNode::find_first_appearance_of_methods()
+{
+	std::pair<std::vector<Symbol>, std::map<Symbol,Symbol> > res;
 	if(get_name() == No_class)
-		return 0;
-	int next_offset = get_parentnd()->code_dispTab(s, current_node);
+		return res;
+	res = get_parentnd()->find_first_appearance_of_methods();
 	for(int i = features->first(); features->more(i); i = features->next(i)) {
 		Feature f = features->nth(i);
 		if(f->get_feature_type() == FEATURE_METHOD) {
 			method_class* m = dynamic_cast<method_class*>(f);
-			s << WORD;
-			emit_method_ref(get_name(), m->name,s);
-			s << endl;
-			current_node->method_offset->addid(m->name, new int(next_offset++));
+			if(res.second.find(m->name) == res.second.end())
+				res.first.push_back(m->name);
+			res.second[m->name] = get_name();
 		}
 	}
-	return next_offset;
+	return res;
+}
+
+void CgenNode::code_dispTab(ostream& s) {
+	std::pair<std::vector<Symbol>, std::map<Symbol,Symbol> > first_app = find_first_appearance_of_methods();
+	for(size_t i = 0; i < first_app.first.size(); ++i) {
+		s << WORD;
+		emit_method_ref(first_app.second[first_app.first[i]], first_app.first[i], s);
+		s << endl;
+		method_offset->addid(first_app.first[i], new int(i));
+	}
 }
 
 
@@ -932,8 +944,8 @@ void CgenNode::code_initializer(ostream& s) {
 	emit_push(SELF,s);			//store the self pointer $self
 	emit_push(RA,s);			//store the return address $ra
 
-	//emit_addiu(FP,SP,4,s);		//set the new frame pointer $fp. but why this value?
-	emit_move(FP,SP,s);
+	emit_addiu(FP,SP,4,s);		//set the new frame pointer $fp. but why this value?
+	//emit_move(FP,SP,s);
 	emit_move(SELF,ACC,s);		//set $self to the prototype object in ACC.
 	if(get_name() != Object) {
 		s << JAL;				//initialize parent class. No need for Object class.
@@ -969,6 +981,11 @@ void CgenNode::code_methods(ostream& s) {
 		Feature f = features->nth(i);
 		if(f->get_feature_type() == FEATURE_METHOD) {
 			method_class* method = dynamic_cast<method_class*>(f);
+			if(cgen_debug) {
+				cout << "\t\tcoding for ";
+				emit_method_ref(name, method->name, cout);
+				cout << endl;
+			}
 			emit_method_ref(name,method->name,s);
 			s  << LABEL;
 
@@ -977,13 +994,17 @@ void CgenNode::code_methods(ostream& s) {
 			emit_push(RA,s);			//store the return address $ra
 
 			//set up $fp
-			emit_move(FP,SP,s);
-			//why do i need this?
+			emit_addiu(FP,SP,4,s);		//set the new frame pointer $fp. but why this value?
+			//emit_move(FP,SP,s);
+
+			//In dispatch_class, the value of expr is saved in ACC. During the execution of
+			//the method, SELF should use this value.
 			emit_move(SELF,ACC,s);
 
 			//Put all formals in the frame_env
 			class_table->get_frame_env()->enterscope();
-			int offset = method->formals->len();
+			//offset of the first arg: len + 2 (fp + self)
+			int offset = method->formals->len() + 2;
 			for(int i = method->formals->first(); method->formals->more(i); i = method->formals->next(i)) {
 				formal_class* formal = dynamic_cast<formal_class*>(method->formals->nth(i));
 				class_table->get_frame_env()->addid(formal->name, new int(offset--));
@@ -998,6 +1019,20 @@ void CgenNode::code_methods(ostream& s) {
 			emit_return(s);			//return
 		}
 	}
+}
+
+int CgenNode::get_method_offset(Symbol type, Symbol name) {
+	CgenNode* node = (type == SELF_TYPE) ? this : class_table->lookup(type);
+	assert(node);
+	int* offset = node->method_offset->lookup(name);
+	assert(offset);
+	return *offset;
+}
+
+int CgenNode::get_attr_offset(Symbol name) {
+	int* offset = attr_offset->lookup(name);
+	assert(offset);
+	return *offset;
 }
 
 void CgenClassTable::code_protObjs() {
@@ -1131,9 +1166,7 @@ void assign_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, 
 	if(frame_offset != NULL) {
 		emit_store(ACC, *frame_offset, FP, s);
 	} else {
-		int* attr_offset = current_node->get_attr_offset()->lookup(name);
-		assert(attr_offset != NULL);
-		emit_store(ACC, *attr_offset, SELF, s);
+		emit_store(ACC, current_node->get_attr_offset(name), SELF, s);
 	}
 }
 
@@ -1141,9 +1174,6 @@ void static_dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable
 }
 
 void dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
-	emit_push(FP,s); 			//store the frame pointer $fp
-	emit_push(SELF,s);			//store the self pointer $self
-	emit_push(RA,s);			//store the return address $ra
 	for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
 		Expression ei = actual->nth(i);
 		ei->code(s, current_node, frame_env);
@@ -1158,18 +1188,18 @@ void dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol
 	emit_load_string(ACC, stringtable.lookup_string(current_node->filename->get_string()), s);
 	//current line number in $t1
 	emit_load_imm(T1,curr_lineno,s);
-	emit_jal(DISPATCH_ABORT, s);
+	emit_jal(DISPATCH_ABORT,s);
 
 	//execute dispatch
 	emit_label_def(branch_label,s);
 	emit_load(T1,DISPTABLE_OFFSET,ACC,s);
-	int* method_offset = current_node->get_method_offset()->lookup(name);
-	assert(method_offset != NULL);
-	emit_load(T1,*method_offset,T1,s);
+	emit_load(T1,current_node->get_method_offset(expr->get_type(), name),T1,s);
 	emit_jalr(T1,s);
 }
 
 void cond_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	//pred->code(s, current_node, frame_env);
+
 }
 
 void loop_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
@@ -1179,6 +1209,9 @@ void typcase_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol,
 }
 
 void block_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	for(int i = body->first(); body->more(i); i = body->next(i)) {
+		body->nth(i)->code(s, current_node, frame_env);
+	}
 }
 
 void let_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
@@ -1333,14 +1366,15 @@ void bool_const_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symb
 }
 
 void new__class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
-	//TODO: SELF_TYPE
+	Symbol actual_type = (type_name == SELF_TYPE) ? current_node->name : type_name;
 	emit_partial_load_address(ACC,s);
-	emit_protobj_ref(type_name,s);
+	emit_protobj_ref(actual_type,s);
 	s << endl;
 	emit_jal("Object.copy",s);
 	s << JAL;
-	emit_init_ref(type_name,s);
+	emit_init_ref(actual_type,s);
 	s << endl;
+
 }
 
 void isvoid_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
@@ -1351,13 +1385,15 @@ void no_expr_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol,
 }
 
 void object_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
-	int* frame_offset = frame_env->lookup(name);
-	if(frame_offset != NULL) {
-		emit_load(ACC, *frame_offset, FP, s);
+	if(name == self) {
+		emit_move(ACC, SELF, s);
 	} else {
-		int* attr_offset = current_node->get_attr_offset()->lookup(name);
-		assert(attr_offset != NULL);
-		emit_load(ACC, *attr_offset, SELF, s);
+		int* frame_offset = frame_env->lookup(name);
+		if(frame_offset != NULL) {
+			emit_load(ACC, *frame_offset, FP, s);
+		} else {
+			emit_load(ACC, current_node->get_attr_offset(name), SELF, s);
+		}
 	}
 }
 

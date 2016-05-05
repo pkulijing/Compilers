@@ -3,6 +3,9 @@
 #include "emit.h"
 #include "cool-tree.h"
 #include "symtab.h"
+#include <map>
+#include <vector>
+#include <utility>
 
 enum Basicness     {Basic, NotBasic};
 #define TRUE 1
@@ -75,6 +78,8 @@ private:
    int tag;									  // tag of the class
    SymbolTable<Symbol, int>* attr_offset;	  // environment of attributes. map from name to offset.
    SymbolTable<Symbol, int>* method_offset;	  // map from method name to offset.
+
+   std::pair<std::vector<Symbol>, std::map<Symbol,Symbol> > find_first_appearance_of_methods();
 public:
    CgenNode(Class_ c,
             Basicness bstatus,
@@ -89,17 +94,20 @@ public:
 
    ////////////////////////////////////////////////////////////////////////
    int get_tag() { return tag; }
-   //Maybe it's better to provide the probe result directly.
-   SymbolTable<Symbol, int>* get_attr_offset() { return attr_offset; }
-   SymbolTable<Symbol, int>* get_method_offset() { return method_offset; }
+
+   //get the offset of a method inside an object of this type (or its subtype). Useful for dispatch.
+   int get_method_offset(Symbol type, Symbol name);
+
+   //get the offset of an attr. Since attrs are invisible outside of its own object, no need to provide type.
+   int get_attr_offset(Symbol name);
+
 
    //current_node is needed in the two methods because they will be called recursively, while we want to modify
    //attr_offset and method_offset in the recursive calls.
    //return: offset of the next attr
    int code_attrs(ostream& s, CgenNode* current_node);
 
-   //return: offset of the next method
-   int code_dispTab(ostream& s, CgenNode* current_node);
+   void code_dispTab(ostream& s);
 
    //size of an object of this class.
    int size_in_word();
