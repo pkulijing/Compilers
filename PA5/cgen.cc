@@ -974,7 +974,6 @@ void CgenNode::code_initializer(ostream& s) {
 			if(attr->init->get_type()) {
 				//This will put the result of the init expression in ACC
 				attr->init->code(s, this, class_table->get_frame_env());
-
 				//Store the value of the init expression at the correct position
 				emit_store(ACC,*attr_offset->probe(attr->name),SELF,s);
 			}
@@ -1205,6 +1204,9 @@ void static_dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable
 }
 
 void dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	if(cgen_debug) {
+		cout << "\t\t\tcoding " << expr->type << "." << name << " inside " << current_node->name << endl;
+	}
 	for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
 		Expression ei = actual->nth(i);
 		ei->code(s, current_node, frame_env);
@@ -1514,15 +1516,34 @@ void bool_const_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symb
 }
 
 void new__class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
-	Symbol actual_type = (type_name == SELF_TYPE) ? current_node->name : type_name;
-	emit_partial_load_address(ACC,s);
-	emit_protobj_ref(actual_type,s);
-	s << endl;
-	emit_jal(OBJECTCOPY,s);
-	s << JAL;
-	emit_init_ref(actual_type,s);
-	s << endl;
-
+	if(type_name != SELF_TYPE) {
+		emit_partial_load_address(ACC,s);
+		emit_protobj_ref(type_name,s);
+		s << endl;
+		emit_jal(OBJECTCOPY,s);
+		s << JAL;
+		emit_init_ref(type_name,s);
+		s << endl;
+	} else {
+		//address of class_objTab
+		emit_load_address(T1,CLASSOBJTAB,s);
+		//tag of SELF_TYPE
+		emit_load(T2,TAG_OFFSET,SELF,s);
+		//shift left by 1 (X2). Offset of prototype object of SELF_TYPE
+		emit_sll(T2,T2,3,s);
+		//address of protObj of SELF_TYPE
+		emit_addu(T1,T1,T2,s);
+		//I don't understand why this makes a difference
+		emit_move(T3,T1,s);
+		//load protObj of SELF_TYPE
+		emit_load(ACC,0,T1,s);
+		//copy
+		emit_jal(OBJECTCOPY,s);
+		//load Init of SELF_TYPE
+		emit_load(T1,1,T3,s);
+		//jump to Init of SELF_TYPE
+		emit_jalr(T1,s);
+	}
 }
 
 void isvoid_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
