@@ -1,8 +1,13 @@
 Class Main inherits IO {
-	a : Int <- 2;
-	main(): Object{
-		while (a < 5) loop {
-		a <- a + 1;
-		out_int(a);
-	} pool};
+	main(): Object {
+		out_int(
+		let a : Int <- 1, 
+		b : Int <- 2, 
+		c : Int <- 3,
+		d : Int <- 4,
+		e : Int <- 5,
+		f : Int <- 6,
+		g : Int <- 7,
+		h : Int <- 8 in h)
+	};
 };

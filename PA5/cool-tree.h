@@ -444,6 +444,7 @@ public:
    Symbol type_decl;
    Expression init;
    Expression body;
+   static int layer;
 public:
    let_class(Symbol a1, Symbol a2, Expression a3, Expression a4) {
       identifier = a1;

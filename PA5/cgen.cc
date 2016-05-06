@@ -37,6 +37,7 @@ const int MY_STRING_TAG = 4;
 const int FIRST_NONBASIC_CLASS_TAG = 5;
 
 int Expression_class::i_label = 0;
+int let_class::layer = 0;
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
 // If e : No_type, then no code is generated for e.
@@ -1244,6 +1245,14 @@ void block_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, i
 }
 
 void let_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	init->code(s, current_node, frame_env);
+	emit_push(ACC,s);
+	frame_env->enterscope();
+	frame_env->addid(identifier, new int(-(++layer)));
+	body->code(s, current_node, frame_env);
+	frame_env->exitscope();
+	layer--;
+	emit_addiu(SP,SP,4,s);
 }
 
 void plus_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
