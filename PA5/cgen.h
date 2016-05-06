@@ -63,7 +63,6 @@ public:
    void code();
    CgenNodeP root();
 ////////////////////////////////////////////////////////////////////////
-   CgenNode* get_node_by_tag(int tag);
    SymbolTable<Symbol, int>* get_frame_env() { return frame_env; }
 
 };
@@ -100,9 +99,9 @@ public:
    //get the offset of a method inside an object of this type (or its subtype). Useful for dispatch.
    int get_method_offset(Symbol type, Symbol name);
 
+   CgenNode* get_node_by_name(Symbol name) { return class_table->lookup(name); }
    //get the offset of an attr. Since attrs are invisible outside of its own object, no need to provide type.
    int get_attr_offset(Symbol name);
-
 
    //current_node is needed in the two methods because they will be called recursively, while we want to modify
    //attr_offset and method_offset in the recursive calls.

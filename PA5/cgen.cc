@@ -25,6 +25,7 @@
 #include "cgen.h"
 #include "cgen_gc.h"
 #include <cassert>
+#include <sstream>
 
 extern void emit_string_constant(ostream& str, char *s);
 extern int cgen_debug;
@@ -1042,6 +1043,9 @@ int CgenNode::get_method_offset(Symbol type, Symbol name) {
 
 int CgenNode::get_attr_offset(Symbol name) {
 	int* offset = attr_offset->lookup(name);
+	if(cgen_debug) {
+		cout << this->name << "." << name << endl;
+	}
 	assert(offset);
 	return *offset;
 }
@@ -1124,14 +1128,6 @@ void CgenClassTable::code()
 
 }
 
-CgenNode* CgenClassTable::get_node_by_tag(int tag) {
-	for(List<CgenNode>* l = nds; l; l = l->tl()) {
-		CgenNode* node = l->hd();
-		if(node->get_tag() == tag)
-			return node;
-	}
-	return NULL;
-}
 
 CgenNodeP CgenClassTable::root()
 {
@@ -1182,6 +1178,30 @@ void assign_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, 
 }
 
 void static_dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
+		Expression ei = actual->nth(i);
+		ei->code(s, current_node, frame_env);
+		emit_push(ACC, s);
+	}
+	expr->code(s, current_node, frame_env);
+	int branch_label = i_label++;
+	emit_bne(ACC, ZERO, branch_label, s);
+
+	//handle dispatch on void
+	//name of current file in $a0
+	emit_load_string(ACC, stringtable.lookup_string(current_node->filename->get_string()), s);
+	//current line number in $t1
+	emit_load_imm(T1,curr_lineno,s);
+	emit_jal(DISPATCH_ABORT,s);
+
+	//execute dispatch
+	emit_label_def(branch_label,s);
+	//load dispTab of type
+	s << LA << T1 << "\t";
+	emit_disptable_ref(type_name, s);
+	s << endl;
+	emit_load(T1,current_node->get_method_offset(type_name, name),T1,s);
+	emit_jalr(T1,s);
 }
 
 void dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
@@ -1203,6 +1223,7 @@ void dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol
 
 	//execute dispatch
 	emit_label_def(branch_label,s);
+	//load dispTab of expr
 	emit_load(T1,DISPTABLE_OFFSET,ACC,s);
 	emit_load(T1,current_node->get_method_offset(expr->get_type(), name),T1,s);
 	emit_jalr(T1,s);
