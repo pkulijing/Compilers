@@ -35,10 +35,11 @@ const int MY_IO_TAG = 1;
 const int MY_INT_TAG = 2;
 const int MY_BOOL_TAG = 3;
 const int MY_STRING_TAG = 4;
-const int FIRST_NONBASIC_CLASS_TAG = 5;
+const int NO_ANCESTOR = -1;
 
 int Expression_class::i_label = 0;
-int let_class::layer = 0;
+int let_class::let_layer = 0;
+int typcase_class::case_layer = 0;
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
 // If e : No_type, then no code is generated for e.
@@ -623,7 +624,8 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) :
 		stringclasstag(MY_STRING_TAG),
 		intclasstag(MY_INT_TAG),
 		boolclasstag(MY_BOOL_TAG),
-		frame_env(new SymbolTable<Symbol,int>())
+		frame_env(new SymbolTable<Symbol,int>()),
+		max_tag(0)
 {
 	enterscope();
 	frame_env->enterscope();
@@ -705,7 +707,6 @@ void CgenClassTable::install_basic_classes()
             single_Features(method(in_int, nil_Formals(), Int, no_expr()))),
 	   filename),	    
     Basic,this, MY_IO_TAG));
-
 //
 // The Int class has no methods and only a single attribute, the
 // "val" for the integer. 
@@ -756,7 +757,7 @@ void CgenClassTable::install_basic_classes()
 				   no_expr()))),
 	     filename),
         Basic,this, MY_STRING_TAG));
-
+   max_tag = MY_STRING_TAG;
 }
 
 // CgenClassTable::install_class
@@ -771,6 +772,9 @@ void CgenClassTable::install_class(CgenNodeP nd)
   if (probe(name))
       return;
 
+  if(cgen_debug) {
+	  cout << "installing class " << name << " with tag " << nd->get_tag() << endl;
+  }
   // The class name is legal, so add it to the list of classes
   // and the symbol table.
   nds = new List<CgenNode>(nd,nds);
@@ -779,9 +783,9 @@ void CgenClassTable::install_class(CgenNodeP nd)
 
 void CgenClassTable::install_classes(Classes cs)
 {
-	int tag = FIRST_NONBASIC_CLASS_TAG;
-	for(int i = cs->first(); cs->more(i); i = cs->next(i))
-		install_class(new CgenNode(cs->nth(i),NotBasic,this, tag++));
+	for(int i = cs->first(); cs->more(i); i = cs->next(i)) {
+		install_class(new CgenNode(cs->nth(i),NotBasic,this, ++max_tag));
+	}
 }
 
 //
@@ -1052,7 +1056,8 @@ int CgenNode::get_attr_offset(Symbol name) {
 void CgenClassTable::code_protObjs() {
 	for(List<CgenNode>* l = nds; l; l = l->tl()) {
 		CgenNode* node = l->hd();
-		if(cgen_debug) cout << "\tcoding prototype object for class " << node->get_name() << endl;
+		if(cgen_debug) cout << "\tcoding prototype object for class " << node->get_name() << " with tage "
+				<< node->get_tag() << endl;
 		str << WORD << "-1" << endl;
 		str << node->get_name() << PROTOBJ_SUFFIX << LABEL;
 		str << WORD << node->get_tag() << endl; //tag
@@ -1280,11 +1285,44 @@ void typcase_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol,
 
 	//dynamic type is not void
 	emit_label_def(non_void_branch,s);
-	//get the tag of its dynamic type
+	//get the tag of its dynamic type. Ok to use T1 because there can only be one successful comparison.
+	//Even if T1 gets edited by expr->code(), no problem shall be caused because T1 is no longer needed.
+	//The only case in which T1 is needed later is the case of no match. T1 will not be editted in this case.
 	emit_load(T1,TAG_OFFSET,ACC,s);
-	//
-
+	//Generate code for all classes whose ancestors appear in the cases.
+	for(List<CgenNode>* l = current_node->get_class_table()->get_nds(); l; l = l->tl()) {
+		int closest_ancestor = current_node->get_closest_ancestor(l->hd()->name, cases);
+		if(closest_ancestor != NO_ANCESTOR) {
+			branch_class* branch = dynamic_cast<branch_class*>(cases->nth(closest_ancestor));
+			int label = i_label++;
+			emit_load_imm(T2,l->hd()->get_tag(),s);
+			emit_bne(T1,T2,label,s);
+			emit_push(ACC,s);
+			frame_env->enterscope();
+			frame_env->addid(branch->name, new int(-(++case_layer + let_class::let_layer)));
+			branch->expr->code(s, current_node, frame_env);
+			frame_env->exitscope();
+			--case_layer;
+			emit_branch(end_branch,s);
+			emit_label_def(label,s);
+		}
+	}
+	emit_jal(CASE_ABORT,s);
+	emit_label_def(end_branch,s);
+	emit_addiu(SP,SP,4,s);
 }
+
+int CgenNode::get_closest_ancestor(Symbol type, Cases cases){
+	for(Symbol t = type; t != No_class; t = class_table->lookup(t)->parent) {
+		for(int i = cases->first(); cases->more(i); i = cases->next(i)) {
+			branch_class* branch = dynamic_cast<branch_class*>(cases->nth(i));
+			if(branch->type_decl == t)
+				return i;
+		}
+	}
+	return NO_ANCESTOR;
+}
+
 
 void block_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 	for(int i = body->first(); body->more(i); i = body->next(i)) {
@@ -1318,10 +1356,10 @@ void let_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	}
 	emit_push(ACC,s);
 	frame_env->enterscope();
-	frame_env->addid(identifier, new int(-(++layer)));
+	frame_env->addid(identifier, new int(-(++let_layer + typcase_class::case_layer)));
 	body->code(s, current_node, frame_env);
 	frame_env->exitscope();
-	layer--;
+	--let_layer;
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1545,8 +1583,9 @@ void new__class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 		emit_load_address(T1,CLASSOBJTAB,s);
 		//tag of SELF_TYPE
 		emit_load(T2,TAG_OFFSET,SELF,s);
-		//shift left by 1 (X2). Offset of prototype object of SELF_TYPE
-		emit_sll(T2,T2,DEFAULT_OBJFIELDS,s);
+		//shift left by 1 (X2). Offset of prototype object of SELF_TYPE. why 3????
+		//TODO
+		emit_sll(T2,T2,3,s);
 		//address of protObj of SELF_TYPE
 		emit_addu(T1,T1,T2,s);
 		//t0-t4 are used by the runtime system. We will use the value of T1 again afterwards, thus we save it in S1.

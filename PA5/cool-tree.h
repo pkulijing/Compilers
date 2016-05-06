@@ -400,6 +400,7 @@ class typcase_class : public Expression_class {
 public:
    Expression expr;
    Cases cases;
+   static int case_layer;
 public:
    typcase_class(Expression a1, Cases a2) {
       expr = a1;
@@ -444,7 +445,7 @@ public:
    Symbol type_decl;
    Expression init;
    Expression body;
-   static int layer;
+   static int let_layer;
 public:
    let_class(Symbol a1, Symbol a2, Expression a3, Expression a4) {
       identifier = a1;

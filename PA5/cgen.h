@@ -27,8 +27,9 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////////////////
    SymbolTable<Symbol, int>* frame_env; //enviroment in the current frame. Only modified in let and dispatch.
-
-
+   int max_tag;							//convention: tag starts at 0. Basic classes (Object, IO, Int, Bool, String)
+   	   	   	   	   	   	   	   	   	   	//use 0-4. Tag of non-basic classes starts at 5 and increments by 1 for
+   	   	   	   	   	   	   	   	   	   	// each new class;
 // The following methods emit code for
 // constants and global declarations.
 
@@ -64,7 +65,7 @@ public:
    CgenNodeP root();
 ////////////////////////////////////////////////////////////////////////
    SymbolTable<Symbol, int>* get_frame_env() { return frame_env; }
-
+   List<CgenNode>* get_nds() { return nds; }
 };
 
 
@@ -95,13 +96,15 @@ public:
 
    ////////////////////////////////////////////////////////////////////////
    int get_tag() { return tag; }
+   CgenClassTableP get_class_table() { return class_table; }
 
    //get the offset of a method inside an object of this type (or its subtype). Useful for dispatch.
    int get_method_offset(Symbol type, Symbol name);
-
-   CgenNode* get_node_by_name(Symbol name) { return class_table->lookup(name); }
    //get the offset of an attr. Since attrs are invisible outside of its own object, no need to provide type.
    int get_attr_offset(Symbol name);
+
+   //get the closest ancestor of type in options. return NULL if no ancestor of type is contained in the list.
+   int get_closest_ancestor(Symbol type, Cases cases);
 
    //current_node is needed in the two methods because they will be called recursively, while we want to modify
    //attr_offset and method_offset in the recursive calls.
