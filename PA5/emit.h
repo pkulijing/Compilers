@@ -74,6 +74,7 @@
 #define SP   "$sp"		// Stack pointer 
 #define FP   "$fp"		// Frame pointer 
 #define RA   "$ra"		// Return address 
+#define S1 	"$s1" 		// temp. guaranteed not to be changed by the runtime system
 
 //
 // Opcodes
@@ -109,4 +110,5 @@
 #define DISPATCH_ABORT "\t_dispatch_abort\t"
 #define OBJECTCOPY "\tObject.copy\t"
 #define EQUALITY_TEST "\tequality_test\t"
-
+#define CASE_ABORT "\t_case_abort\t"
+#define CASE_ABORT2 "\t_case_abort2\t"

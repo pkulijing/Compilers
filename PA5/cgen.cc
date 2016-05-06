@@ -1269,6 +1269,20 @@ void loop_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 }
 
 void typcase_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+	expr->code(s, current_node, frame_env);
+	int non_void_branch = i_label++;
+	int end_branch = i_label++;
+	//case on void: _case_abort (predefined in runtime system)
+	emit_bne(ACC,ZERO,non_void_branch,s);
+	emit_load_imm(T1,curr_lineno,s);
+	emit_load_string(ACC,stringtable.lookup_string(current_node->filename->get_string()),s);
+	emit_jal(CASE_ABORT2,s);
+
+	//dynamic type is not void
+	emit_label_def(non_void_branch,s);
+	//get the tag of its dynamic type
+	emit_load(T1,TAG_OFFSET,ACC,s);
+	//
 
 }
 
@@ -1535,14 +1549,14 @@ void new__class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 		emit_sll(T2,T2,DEFAULT_OBJFIELDS,s);
 		//address of protObj of SELF_TYPE
 		emit_addu(T1,T1,T2,s);
-		//I don't understand why this makes a difference
-		emit_move(T3,T1,s);
+		//t0-t4 are used by the runtime system. We will use the value of T1 again afterwards, thus we save it in S1.
+		emit_move(S1,T1,s);
 		//load protObj of SELF_TYPE
 		emit_load(ACC,0,T1,s);
-		//copy
+		//copy.
 		emit_jal(OBJECTCOPY,s);
 		//load Init of SELF_TYPE
-		emit_load(T1,1,T3,s);
+		emit_load(T1,1,S1,s);
 		//jump to Init of SELF_TYPE
 		emit_jalr(T1,s);
 	}
