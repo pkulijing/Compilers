@@ -50,7 +50,9 @@ private:
    void set_relations(CgenNodeP nd);
 ////////////////////////////////////////////////////////////////////////
    void code_class_nameTab();
+   void code_class_nameTab(List<CgenNode> *);
    void code_class_objTab();
+   void code_class_objTab(List<CgenNode> *);
    void code_dispTabs();
    void code_protObjs();
    void code_initializers();

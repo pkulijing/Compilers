@@ -819,19 +819,29 @@ void CgenNode::set_parentnd(CgenNodeP p)
 
 void CgenClassTable::code_class_nameTab() {
 	str << CLASSNAMETAB << LABEL;
-	for(List<CgenNode>* l = nds; l; l = l->tl()) {
-		str << WORD;
-		stringtable.lookup_string(l->hd()->get_name()->get_string())->code_ref(str);
-		str << endl;
-	}
+	code_class_nameTab(nds);
+}
+
+void CgenClassTable::code_class_nameTab(List<CgenNode> *nds_left) {
+	if(!nds_left)
+		return;
+	code_class_nameTab(nds_left->tl());
+	str << WORD;
+	stringtable.lookup_string(nds_left->hd()->get_name()->get_string())->code_ref(str);
+	str << endl;
 }
 
 void CgenClassTable::code_class_objTab() {
 	str << CLASSOBJTAB << LABEL;
-	for(List<CgenNode>* l = nds; l; l = l->tl()) {
-		str << WORD << l->hd()->get_name() << PROTOBJ_SUFFIX << endl;
-		str << WORD << l->hd()->get_name() << CLASSINIT_SUFFIX << endl;
-	}
+	code_class_objTab(nds);
+}
+
+void CgenClassTable::code_class_objTab(List<CgenNode> *nds_left) {
+	if(!nds_left)
+		return;
+	code_class_objTab(nds_left->tl());
+	str << WORD << nds_left->hd()->get_name() << PROTOBJ_SUFFIX << endl;
+	str << WORD << nds_left->hd()->get_name() << CLASSINIT_SUFFIX << endl;
 }
 
 void CgenClassTable::code_dispTabs() {
