@@ -1196,7 +1196,7 @@ void static_dispatch_class::code(ostream &s, CgenNode* current_node, SymbolTable
 
 	//execute dispatch
 	emit_label_def(branch_label,s);
-	//load dispTab of type
+	//load dispTab of type_name
 	s << LA << T1 << "\t";
 	emit_disptable_ref(type_name, s);
 	s << endl;
@@ -1267,6 +1267,7 @@ void loop_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 }
 
 void typcase_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
+
 }
 
 void block_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
@@ -1276,7 +1277,29 @@ void block_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, i
 }
 
 void let_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
-	init->code(s, current_node, frame_env);
+	if(init->get_type()) {
+		//explicit initialization
+		init->code(s, current_node, frame_env);
+	} else {
+		//default initialization.Bool, Int, Str have default values, other types are initialzed to void.
+		if(type_decl == Bool) {
+			emit_partial_load_address(ACC, s);
+			falsebool.code_ref(s);
+			s << endl;
+		} else if(type_decl == Int) {
+			emit_partial_load_address(ACC, s);
+			inttable.lookup_string("0")->code_ref(s);
+			s << endl;
+		}
+		else if(type_decl == Str) {
+			emit_partial_load_address(ACC, s);
+			stringtable.lookup_string("")->code_ref(s);
+			s << endl;
+		}
+		else {
+			emit_move(ACC,ZERO,s);
+		}
+	}
 	emit_push(ACC,s);
 	frame_env->enterscope();
 	frame_env->addid(identifier, new int(-(++layer)));
@@ -1290,7 +1313,7 @@ void plus_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
 	e2->code(s, current_node, frame_env);
-	emit_jal("Object.copy",s);
+	emit_jal(OBJECTCOPY,s);
 	emit_load(T1,1,SP,s);
 
 	//load the int values
@@ -1309,7 +1332,7 @@ void sub_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
 	e2->code(s, current_node, frame_env);
-	emit_jal("Object.copy",s);
+	emit_jal(OBJECTCOPY,s);
 	emit_load(T1,1,SP,s);
 
 	//load the int values
@@ -1328,7 +1351,7 @@ void mul_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
 	e2->code(s, current_node, frame_env);
-	emit_jal("Object.copy",s);
+	emit_jal(OBJECTCOPY,s);
 	emit_load(T1,1,SP,s);
 
 	//load the int values
@@ -1347,7 +1370,7 @@ void divide_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, 
 	e1->code(s, current_node, frame_env);
 	emit_push(ACC,s);
 	e2->code(s, current_node, frame_env);
-	emit_jal("Object.copy",s);
+	emit_jal(OBJECTCOPY,s);
 	emit_load(T1,1,SP,s);
 
 	//load the int values
@@ -1495,7 +1518,7 @@ void new__class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 	emit_partial_load_address(ACC,s);
 	emit_protobj_ref(actual_type,s);
 	s << endl;
-	emit_jal("Object.copy",s);
+	emit_jal(OBJECTCOPY,s);
 	s << JAL;
 	emit_init_ref(actual_type,s);
 	s << endl;

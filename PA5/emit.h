@@ -107,5 +107,5 @@
 
 ////////////////////////////////////////////////
 #define DISPATCH_ABORT "\t_dispatch_abort\t"
-
+#define OBJECTCOPY "\tObject.copy\t"
 
