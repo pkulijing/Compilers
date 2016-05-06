@@ -1319,14 +1319,14 @@ void plus_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 	emit_load(T1,1,SP,s);
 
 	//load the int values
-	emit_load(T2,3,T1, s);
-	emit_load(T3,3,ACC,s);
+	emit_load(T2,DEFAULT_OBJFIELDS,T1, s);
+	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
 
 	//calculation on int values
 	emit_add(T1,T2,T3,s);
 
 	//store the int value in the object
-	emit_store(T1,3,ACC,s);
+	emit_store(T1,DEFAULT_OBJFIELDS,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1338,14 +1338,14 @@ void sub_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	emit_load(T1,1,SP,s);
 
 	//load the int values
-	emit_load(T2,3,T1, s);
-	emit_load(T3,3,ACC,s);
+	emit_load(T2,DEFAULT_OBJFIELDS,T1, s);
+	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
 
 	//calculation on int values
 	emit_sub(T1,T2,T3,s);
 
 	//store the int value in the object
-	emit_store(T1,3,ACC,s);
+	emit_store(T1,DEFAULT_OBJFIELDS,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1357,14 +1357,14 @@ void mul_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	emit_load(T1,1,SP,s);
 
 	//load the int values
-	emit_load(T2,3,T1, s);
-	emit_load(T3,3,ACC,s);
+	emit_load(T2,DEFAULT_OBJFIELDS,T1, s);
+	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
 
 	//calculation on int values
 	emit_mul(T1,T2,T3,s);
 
 	//store the int value in the object
-	emit_store(T1,3,ACC,s);
+	emit_store(T1,DEFAULT_OBJFIELDS,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1376,24 +1376,25 @@ void divide_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, 
 	emit_load(T1,1,SP,s);
 
 	//load the int values
-	emit_load(T2,3,T1,s);
-	emit_load(T3,3,ACC,s);
+	emit_load(T2,DEFAULT_OBJFIELDS,T1,s);
+	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
 
 	//calculation on int values
 	emit_div(T1,T2,T3,s);
 
 	//store the int value in the object
-	emit_store(T1,3,ACC,s);
+	emit_store(T1,DEFAULT_OBJFIELDS,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
 void neg_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
 	e1->code(s, current_node, frame_env);
 	//load the int value
-	emit_load(T1,3,ACC,s);
+	emit_jal(OBJECTCOPY,s);
+	emit_load(T1,DEFAULT_OBJFIELDS,ACC,s);
 	emit_neg(T1,T1,s);
 	//store the int value
-	emit_store(T1,3,ACC,s);
+	emit_store(T1,DEFAULT_OBJFIELDS,ACC,s);
 }
 
 void lt_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
@@ -1406,8 +1407,8 @@ void lt_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>
 	int end_branch = i_label++;
 
 	//load the int values
-	emit_load(T2,3,T1,s);
-	emit_load(T3,3,ACC,s);
+	emit_load(T2,DEFAULT_OBJFIELDS,T1,s);
+	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
 
 	//if e1 < e2 goto true_branch; otherwise continue
 	emit_blt(T2,T3,true_branch,s);
@@ -1435,8 +1436,8 @@ void eq_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>
 	int end_branch = i_label++;
 
 	//load the int values
-	emit_load(T2,3,T1,s);
-	emit_load(T3,3,ACC,s);
+	emit_load(T2,DEFAULT_OBJFIELDS,T1,s);
+	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
 
 	//if e1 == e2 goto true_branch; otherwise continue
 	emit_beq(T2,T3,true_branch,s);
@@ -1463,8 +1464,8 @@ void leq_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	int end_branch = i_label++;
 
 	//load the int values
-	emit_load(T2,3,T1,s);
-	emit_load(T3,3,ACC,s);
+	emit_load(T2,DEFAULT_OBJFIELDS,T1,s);
+	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
 
 	//if e1 <= e2 goto true_branch; otherwise continue
 	emit_bleq(T2,T3,true_branch,s);
@@ -1485,6 +1486,8 @@ void comp_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 	e1->code(s, current_node, frame_env);
 	int false_branch = i_label++;
 	int end_branch = i_label++;
+	//load the value in the bool object.
+	emit_load(ACC,DEFAULT_OBJFIELDS,ACC,s);
 	emit_beqz(ACC,false_branch,s);
 
 	emit_load_bool(ACC,falsebool,s);
@@ -1530,7 +1533,7 @@ void new__class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 		//tag of SELF_TYPE
 		emit_load(T2,TAG_OFFSET,SELF,s);
 		//shift left by 1 (X2). Offset of prototype object of SELF_TYPE
-		emit_sll(T2,T2,3,s);
+		emit_sll(T2,T2,DEFAULT_OBJFIELDS,s);
 		//address of protObj of SELF_TYPE
 		emit_addu(T1,T1,T2,s);
 		//I don't understand why this makes a difference
