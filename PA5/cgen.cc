@@ -1435,14 +1435,13 @@ void eq_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>
 	int true_branch = i_label++;
 	int end_branch = i_label++;
 
-	//load the int values
-	emit_load(T2,DEFAULT_OBJFIELDS,T1,s);
-	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
-
-	//if e1 == e2 goto true_branch; otherwise continue
-	emit_beq(T2,T3,true_branch,s);
-
-	emit_load_bool(ACC,falsebool,s);
+	//if they are the same object return true
+	emit_beq(T1,ACC,true_branch,s);
+	//otherwise check for equality of basic classes. euqality_test is predefined in runtime system
+	emit_move(T2,ACC,s);
+	emit_load_bool(ACC,truebool,s);
+	emit_load_bool(A1,falsebool,s);
+	emit_jal(EQUALITY_TEST,s);
 	emit_branch(end_branch,s);
 
 	//true_branch
