@@ -18,10 +18,10 @@ _string_tag:
 	.word	4
 	.globl	_MemMgr_INITIALIZER
 _MemMgr_INITIALIZER:
-	.word	_NoGC_Init
+	.word	_GenGC_Init
 	.globl	_MemMgr_COLLECTOR
 _MemMgr_COLLECTOR:
-	.word	_NoGC_Collect
+	.word	_GenGC_Collect
 	.globl	_MemMgr_TEST
 _MemMgr_TEST:
 	.word	0
@@ -607,6 +607,44 @@ label0:
 	jal		_case_abort2	
 label1:
 	lw	$t1 0($a0)
+	li	$t2 9
+	bne	$t1 $t2 label3
+	sw	$a0 0($sp)
+	addiu	$sp $sp -4
+	lw	$a0 -4($fp)
+	b	label2
+label3:
+	li	$t2 8
+	bne	$t1 $t2 label4
+	sw	$a0 0($sp)
+	addiu	$sp $sp -4
+	lw	$a0 -4($fp)
+	b	label2
+label4:
+	li	$t2 7
+	bne	$t1 $t2 label5
+	sw	$a0 0($sp)
+	addiu	$sp $sp -4
+	lw	$a0 -4($fp)
+	b	label2
+label5:
+	li	$t2 6
+	bne	$t1 $t2 label6
+	sw	$a0 0($sp)
+	addiu	$sp $sp -4
+	lw	$a0 -4($fp)
+	b	label2
+label6:
+	li	$t2 5
+	bne	$t1 $t2 label7
+	sw	$a0 0($sp)
+	addiu	$sp $sp -4
+	lw	$a0 -4($fp)
+	b	label2
+label7:
+	jal		_case_abort	
+label2:
+	addiu	$sp $sp 4
 	lw	$fp 12($sp)
 	lw	$s0 8($sp)
 	lw	$ra 4($sp)

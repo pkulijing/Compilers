@@ -1371,14 +1371,14 @@ void plus_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, in
 	emit_load(T1,1,SP,s);
 
 	//load the int values
-	emit_load(T2,DEFAULT_OBJFIELDS,T1, s);
-	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
+	emit_fetch_int(T2,T1,s);
+	emit_fetch_int(T3,ACC,s);
 
 	//calculation on int values
 	emit_add(T1,T2,T3,s);
 
 	//store the int value in the object
-	emit_store(T1,DEFAULT_OBJFIELDS,ACC,s);
+	emit_store_int(T1,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1390,14 +1390,14 @@ void sub_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	emit_load(T1,1,SP,s);
 
 	//load the int values
-	emit_load(T2,DEFAULT_OBJFIELDS,T1, s);
-	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
+	emit_fetch_int(T2,T1,s);
+	emit_fetch_int(T3,ACC,s);
 
 	//calculation on int values
 	emit_sub(T1,T2,T3,s);
 
 	//store the int value in the object
-	emit_store(T1,DEFAULT_OBJFIELDS,ACC,s);
+	emit_store_int(T1,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1409,14 +1409,14 @@ void mul_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	emit_load(T1,1,SP,s);
 
 	//load the int values
-	emit_load(T2,DEFAULT_OBJFIELDS,T1, s);
-	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
+	emit_fetch_int(T2,T1,s);
+	emit_fetch_int(T3,ACC,s);
 
 	//calculation on int values
 	emit_mul(T1,T2,T3,s);
 
 	//store the int value in the object
-	emit_store(T1,DEFAULT_OBJFIELDS,ACC,s);
+	emit_store_int(T1,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1428,14 +1428,14 @@ void divide_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, 
 	emit_load(T1,1,SP,s);
 
 	//load the int values
-	emit_load(T2,DEFAULT_OBJFIELDS,T1,s);
-	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
+	emit_fetch_int(T2,T1,s);
+	emit_fetch_int(T3,ACC,s);
 
 	//calculation on int values
 	emit_div(T1,T2,T3,s);
 
 	//store the int value in the object
-	emit_store(T1,DEFAULT_OBJFIELDS,ACC,s);
+	emit_store_int(T1,ACC,s);
 	emit_addiu(SP,SP,4,s);
 }
 
@@ -1443,10 +1443,10 @@ void neg_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	e1->code(s, current_node, frame_env);
 	//load the int value
 	emit_jal(OBJECTCOPY,s);
-	emit_load(T1,DEFAULT_OBJFIELDS,ACC,s);
+	emit_fetch_int(T1,ACC,s);
 	emit_neg(T1,T1,s);
 	//store the int value
-	emit_store(T1,DEFAULT_OBJFIELDS,ACC,s);
+	emit_store_int(T1,ACC,s);
 }
 
 void lt_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>* frame_env) {
@@ -1459,8 +1459,8 @@ void lt_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int>
 	int end_branch = i_label++;
 
 	//load the int values
-	emit_load(T2,DEFAULT_OBJFIELDS,T1,s);
-	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
+	emit_fetch_int(T2,T1,s);
+	emit_fetch_int(T3,ACC,s);
 
 	//if e1 < e2 goto true_branch; otherwise continue
 	emit_blt(T2,T3,true_branch,s);
@@ -1515,8 +1515,8 @@ void leq_class::code(ostream &s, CgenNode* current_node, SymbolTable<Symbol, int
 	int end_branch = i_label++;
 
 	//load the int values
-	emit_load(T2,DEFAULT_OBJFIELDS,T1,s);
-	emit_load(T3,DEFAULT_OBJFIELDS,ACC,s);
+	emit_fetch_int(T2,T1,s);
+	emit_fetch_int(T3,ACC,s);
 
 	//if e1 <= e2 goto true_branch; otherwise continue
 	emit_bleq(T2,T3,true_branch,s);
